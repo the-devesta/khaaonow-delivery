@@ -12,7 +12,7 @@ The official delivery partner application for Khaaonow - empowering delivery par
 - **👤 Profile Management**: Manage your profile, documents, and verification status
 - **🌙 Dark Mode**: Full dark mode support for comfortable viewing
 
-## Tech Stack 🛠️
+## Tech Stack
 
 - **Framework**: React Native with Expo
 - **Language**: TypeScript
