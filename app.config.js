@@ -13,10 +13,10 @@ const plugins = [
       resizeMode: "contain",
       backgroundColor: "#ffffff",
       dark: {
-        backgroundColor: "#000000"
-      }
-    }
-  ]
+        backgroundColor: "#000000",
+      },
+    },
+  ],
 ];
 
 // Only add native Firebase plugins for development/production builds (not Expo Go)
@@ -37,16 +37,16 @@ module.exports = {
     newArchEnabled: true,
     extra: {
       eas: {
-        projectId: "18e5d747-329a-48f8-b821-16f514594caf"
-      }
+        projectId: "e80586c0-7ca7-4966-af42-488b6535dd2f",
+      },
     },
     ios: {
-      "infoPlist": {
-      "ITSAppUsesNonExemptEncryption": false
-    },
+      infoPlist: {
+        ITSAppUsesNonExemptEncryption: false,
+      },
       supportsTablet: true,
       bundleIdentifier: "com.khaaonow.delivery",
-      googleServicesFile: process.env.IOS_GOOGLE_SERVICES_PLIST
+      googleServicesFile: process.env.IOS_GOOGLE_SERVICES_PLIST,
     },
     android: {
       package: "com.khaaonow.delivery",
@@ -55,7 +55,7 @@ module.exports = {
         backgroundColor: "#E6F4FE",
         foregroundImage: "./assets/images/logo2.png",
         backgroundImage: "./assets/images/logo2.png",
-        monochromeImage: "./assets/images/logo2.png"
+        monochromeImage: "./assets/images/logo2.png",
       },
       edgeToEdgeEnabled: true,
       intentFilters: [
@@ -66,21 +66,21 @@ module.exports = {
             {
               scheme: "khaaonowdelivery",
               host: "auth",
-              pathPrefix: "/callback"
-            }
+              pathPrefix: "/callback",
+            },
           ],
-          category: ["BROWSABLE", "DEFAULT"]
-        }
-      ]
+          category: ["BROWSABLE", "DEFAULT"],
+        },
+      ],
     },
     web: {
       output: "static",
-      favicon: "./assets/images/favicon.png"
+      favicon: "./assets/images/favicon.png",
     },
     plugins: plugins,
     experiments: {
       typedRoutes: true,
-      reactCompiler: true
-    }
-  }
+      reactCompiler: true,
+    },
+  },
 };
