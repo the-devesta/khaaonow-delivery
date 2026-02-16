@@ -22,13 +22,13 @@ export default function PrimaryButton({
   const getButtonStyle = () => {
     if (disabled) return "bg-gray-300";
     if (variant === "secondary") return "bg-gray-800";
-    if (variant === "outline") return "bg-white border-2 border-orange-500";
-    return "bg-[#FF6A00]";
+    if (variant === "outline") return "bg-white border-2 border-[#F59E0B]";
+    return "bg-[#F59E0B]";
   };
 
   const getTextStyle = () => {
     if (disabled) return "text-gray-500";
-    if (variant === "outline") return "text-[#FF6A00]";
+    if (variant === "outline") return "text-[#F59E0B]";
     return "text-white";
   };
 
@@ -36,7 +36,7 @@ export default function PrimaryButton({
     <TouchableOpacity
       onPress={onPress}
       disabled={disabled || loading}
-      className={`w-full py-4 rounded-full ${getButtonStyle()} shadow-md`}
+      className={`w-full py-4 rounded-3xl ${getButtonStyle()}`}
       activeOpacity={0.8}
     >
       <View className="flex-row items-center justify-center">

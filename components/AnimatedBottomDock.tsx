@@ -4,7 +4,7 @@ import { JSX, useEffect, useRef } from "react";
 import { Animated, Text, TouchableOpacity, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const PRIMARY = "#FF6A00";
+const PRIMARY = "#F59E0B";
 const CIRCLE_SIZE = 60;
 const ACTIVE_WIDTH = 125;
 

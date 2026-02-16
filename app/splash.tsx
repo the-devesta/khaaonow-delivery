@@ -10,7 +10,8 @@ SplashScreen.preventAutoHideAsync();
 
 export default function CustomSplashScreen() {
   const router = useRouter();
-  const { isAuthenticated, initializeAuth, getNavigationRoute, loading } = useAuthStore();
+  const { isAuthenticated, initializeAuth, getNavigationRoute, loading } =
+    useAuthStore();
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -18,15 +19,15 @@ export default function CustomSplashScreen() {
 
   useEffect(() => {
     const initialize = async () => {
-      console.log('🚀 [Splash] Starting initialization...');
-      
+      console.log("🚀 [Splash] Starting initialization...");
+
       // Hide the Expo splash screen
       await SplashScreen.hideAsync();
 
       // Initialize auth state from storage
       await initializeAuth();
-      
-      console.log('✅ [Splash] Auth initialized, starting animation...');
+
+      console.log("✅ [Splash] Auth initialized, starting animation...");
 
       // Smooth fade in and scale sequence
       Animated.sequence([
@@ -56,7 +57,7 @@ export default function CustomSplashScreen() {
       ]).start(() => {
         // Get the appropriate route based on auth state
         const route = getNavigationRoute();
-        console.log('🧭 [Splash] Navigating to:', route);
+        console.log("🧭 [Splash] Navigating to:", route);
         router.replace(route as any);
       });
     };
@@ -103,14 +104,14 @@ export default function CustomSplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FF6A00",
+    backgroundColor: "#FFD600", // Yellow primary
     alignItems: "center",
     justifyContent: "center",
   },
   logoContainer: {
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#FF6A00",
+    shadowColor: "#F57F17", // darker yellow/orange shadow
     shadowOffset: {
       width: 0,
       height: 15,

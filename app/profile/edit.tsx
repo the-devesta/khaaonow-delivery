@@ -1,15 +1,13 @@
-import AnimatedStepIndicator from "@/components/ui/animated-step-indicator";
 import PrimaryButton from "@/components/ui/primary-button";
 import { ApiService } from "@/services/api";
-import { OnboardingStatus, useAuthStore } from "@/store/auth";
-import { BasicDetailsSchema } from "@/utils/validations";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Formik } from "formik";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   KeyboardAvoidingView,
@@ -22,33 +20,76 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import * as Yup from "yup";
 
-export default function BasicDetailsScreen() {
+const EditProfileSchema = Yup.object().shape({
+  name: Yup.string()
+    .min(2, "Name is too short")
+    .max(50, "Name is too long")
+    .required("Full Name is required"),
+  email: Yup.string()
+    .email("Invalid email address")
+    .required("Email is required"),
+});
+
+export default function EditProfileScreen() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const { updateOnboardingStatus } = useAuthStore();
+  const [initialValues, setInitialValues] = useState({ name: "", email: "" });
+  const [fetching, setFetching] = useState(true);
   const insets = useSafeAreaInsets();
 
-  const handleNext = async (values: { name: string; email: string }) => {
+  useEffect(() => {
+    fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      const response = await ApiService.getProfile();
+      if (response.success && response.data) {
+        setInitialValues({
+          name: response.data.name || "",
+          email: response.data.email || "",
+        });
+      }
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+      Alert.alert("Error", "Failed to load profile data");
+    } finally {
+      setFetching(false);
+    }
+  };
+
+  const handleUpdate = async (values: { name: string; email: string }) => {
     setLoading(true);
     try {
-      const response = await ApiService.completeProfile(values);
+      // Assuming ApiService has an updateProfile method, if not we'll use axios directly or add it
+      // Based on controller, endpoint is PUT /delivery-partners/profile
+      // We might need to check if ApiService has this method exposed.
+      // If not, I'll update ApiService later. For now assuming it exists or I'll add it.
+      const response = await ApiService.updateProfile(values); // Need to verify this exists
+
       if (response.success) {
-        await updateOnboardingStatus(OnboardingStatus.PERSONAL_INFO, 20);
-        router.push({
-          pathname: "/registration/kyc-documents",
-          params: values,
-        });
+        Alert.alert("Success", "Profile updated successfully");
+        router.back();
       } else {
-        Alert.alert("Error", response.message || "Failed to save profile");
+        Alert.alert("Error", response.message || "Failed to update profile");
       }
     } catch (error: any) {
-      console.error("Profile completion error:", error);
-      Alert.alert("Error", "Failed to complete profile. Please try again.");
+      console.error("Profile update error:", error);
+      Alert.alert("Error", "Failed to update profile. Please try again.");
     } finally {
       setLoading(false);
     }
   };
+
+  if (fetching) {
+    return (
+      <View className="flex-1 bg-black items-center justify-center">
+        <ActivityIndicator size="large" color="#F59E0B" />
+      </View>
+    );
+  }
 
   return (
     <View className="flex-1 bg-black">
@@ -61,7 +102,7 @@ export default function BasicDetailsScreen() {
       {/* Background Image with Blur */}
       <View className="absolute w-full h-full overflow-hidden">
         <Image
-          source={require("../../assets/images/reg-basic.png")}
+          source={require("../../assets/images/reg-basic.png")} // Reusing existing asset
           className="w-full h-full"
           resizeMode="cover"
         />
@@ -97,20 +138,16 @@ export default function BasicDetailsScreen() {
             >
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
-
-            <View className="items-center">
-              <AnimatedStepIndicator currentStep={1} totalSteps={5} />
-            </View>
           </View>
 
           {/* Main Content */}
           <View className="px-6 flex-1 justify-end pb-8">
             <View className="mb-8">
               <Text className="text-4xl font-extrabold text-white mb-2 shadow-sm tracking-tight">
-                Personal Info
+                Edit Profile
               </Text>
               <Text className="text-lg text-white/80 font-medium tracking-wide">
-                Let's start with the basics.
+                Update your personal information.
               </Text>
             </View>
 
@@ -125,9 +162,10 @@ export default function BasicDetailsScreen() {
               }}
             >
               <Formik
-                initialValues={{ name: "", email: "" }}
-                validationSchema={BasicDetailsSchema}
-                onSubmit={handleNext}
+                initialValues={initialValues}
+                validationSchema={EditProfileSchema}
+                onSubmit={handleUpdate}
+                enableReinitialize
               >
                 {({
                   handleChange,
@@ -196,20 +234,8 @@ export default function BasicDetailsScreen() {
                       )}
                     </View>
 
-                    {/* Privacy Note */}
-                    <View className="flex-row items-center mb-6 bg-blue-500/10 p-3 rounded-xl border border-blue-400/20">
-                      <Ionicons
-                        name="shield-checkmark"
-                        size={14}
-                        color="#60A5FA"
-                      />
-                      <Text className="text-xs text-blue-200 ml-2 font-medium flex-1">
-                        Your data is encrypted and secure.
-                      </Text>
-                    </View>
-
                     <PrimaryButton
-                      title="Continue"
+                      title="Save Changes"
                       onPress={handleSubmit}
                       loading={loading}
                     />

@@ -1,10 +1,17 @@
 import AnimatedBottomDock from "@/components/AnimatedBottomDock";
 import { DockProvider, useDock } from "@/context/DockContext";
 import "@/global.css";
+import { useOrderStore } from "@/store/orders";
 import { Tabs } from "expo-router";
+import { useEffect } from "react";
 
 function TabsContent() {
   const { isDockVisible } = useDock();
+  const { initializeSocket } = useOrderStore();
+
+  useEffect(() => {
+    initializeSocket();
+  }, []);
 
   return (
     <Tabs

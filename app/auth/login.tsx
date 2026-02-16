@@ -1,8 +1,7 @@
 import PrimaryButton from "@/components/ui/primary-button";
-import { usePhoneAuth } from "@/hooks/use-phone-auth";
+import { useWhatsAppAuth } from "@/hooks/use-whatsapp-auth";
 import { LoginSchema } from "@/utils/validations";
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Formik } from "formik";
 import { useEffect, useRef } from "react";
@@ -16,154 +15,91 @@ import {
   StatusBar,
   Text,
   TextInput,
-  View
+  View,
 } from "react-native";
-
-// Screen dimensions not needed for this layout
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { sendOtp, loading, error, clearError } = usePhoneAuth();
-  
+  const { sendOtp, loading, error, clearError } = useWhatsAppAuth();
+  const insets = useSafeAreaInsets();
+
   // Animation values
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Entrance animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 600,
+        duration: 800,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 600,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
+        duration: 800,
         useNativeDriver: true,
       }),
     ]).start();
-
-    // Subtle pulse animation for logo
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [fadeAnim, slideAnim, scaleAnim, pulseAnim]);
-
-  const features = [
-    { icon: "flash", label: "Fast Payments", color: "#10B981" },
-    { icon: "time-outline", label: "Flexible Hours", color: "#3B82F6" },
-    { icon: "shield-checkmark", label: "Insurance", color: "#8B5CF6" },
-  ];
+  }, [fadeAnim, slideAnim]);
 
   return (
-    <View className="flex-1 bg-white">
-      <StatusBar barStyle="light-content" backgroundColor="#FF6A00" />
+    <View className="flex-1 bg-[#F3E0D9]">
+      <StatusBar barStyle="dark-content" backgroundColor="#F3E0D9" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         className="flex-1"
       >
         <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
+          contentContainerStyle={{
+            paddingBottom: insets.bottom || 20,
+            paddingTop: insets.top + 20,
+            flexGrow: 1,
+          }}
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
-          bounces={false}
         >
-          {/* Gradient Header with Wave */}
-          <LinearGradient
-            colors={["#FF6A00", "#FF8534", "#FFA366"]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            className="pt-16 pb-20 px-6"
-            style={{ borderBottomLeftRadius: 40, borderBottomRightRadius: 40 }}
-          >
-            {/* Logo & Brand */}
-            <Animated.View 
-              className="items-center"
-              style={{
-                opacity: fadeAnim,
-                transform: [{ scale: pulseAnim }],
-              }}
-            >
-              <View className="w-24 h-24 rounded-3xl items-center justify-center mb-4 overflow-hidden bg-white/20 shadow-xl">
-                <Image
-                  source={require("../../assets/images/2 2.png")}
-                  className="w-36 h-36"
-                  resizeMode="cover"
-                  borderRadius={12}
-                />
-              </View>
-              <Text className="text-3xl font-bold text-white tracking-tight">
-                Khaaonow
-              </Text>
-              <Text className="text-lg font-medium text-white/90 mt-1">
-                Delivery Partner
-              </Text>
-            </Animated.View>
-
-            {/* Features Row */}
-            <Animated.View 
-              className="flex-row justify-center mt-8 gap-6"
-              style={{
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }],
-              }}
-            >
-              {features.map((feature, index) => (
-                <View key={index} className="items-center">
-                  <View 
-                    className="w-12 h-12 rounded-2xl items-center justify-center mb-2"
-                    style={{ backgroundColor: 'rgba(255,255,255,0.25)' }}
-                  >
-                    <Ionicons name={feature.icon as any} size={24} color="white" />
-                  </View>
-                  <Text className="text-xs font-medium text-white/90 text-center">
-                    {feature.label}
-                  </Text>
-                </View>
-              ))}
-            </Animated.View>
-          </LinearGradient>
-
-          {/* Form Card */}
-          <Animated.View 
-            className="flex-1 px-6 -mt-8"
+          <Animated.View
             style={{
               opacity: fadeAnim,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim },
-              ],
+              transform: [{ translateY: slideAnim }],
+              width: "100%",
+              flex: 1,
+              justifyContent: "center",
             }}
           >
-            <View className="bg-white rounded-3xl shadow-2xl p-6 border border-gray-100">
-              {/* Welcome Text */}
-              <View className="mb-6">
-                <Text className="text-2xl font-bold text-[#1A1A1A]">
-                  Welcome! 👋
-                </Text>
-                <Text className="text-base text-[#6B7280] mt-2">
-                  Enter your phone number to get started
-                </Text>
+            {/* Header Section */}
+            <View className="items-center mb-8 px-6">
+              <Text className="text-3xl font-extrabold text-[#1A1A1A] mb-2 text-center">
+                Hello Again! 👋
+              </Text>
+              <Text className="text-base text-gray-500 font-medium text-center">
+                Welcome back to KhaaoNow
+              </Text>
+
+              <View className="mt-8 mb-4 rounded-2xl drop-shadow-xl shadow-amber-100">
+                <Image
+                  className="rounded-2xl"
+                  source={require("../../assets/images/login-illustration.png")}
+                  style={{ width: 200, height: 200, resizeMode: "contain" }}
+                />
+              </View>
+            </View>
+
+            {/* Login Card */}
+            <View
+              className="bg-white/50 backdrop-blur-sm mx-6 rounded-[32px] p-6 shadow-inner shadow-white"
+              style={{
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 10 },
+                shadowOpacity: 0.05,
+                shadowRadius: 20,
+                elevation: 5,
+              }}
+            >
+              <View className="items-center mb-6">
+                <Text className="text-xl font-bold text-[#1A1A1A]">Login</Text>
+                <View className="h-1 w-8 bg-[#F59E0B] rounded-full mt-2" />
               </View>
 
               <Formik
@@ -172,26 +108,17 @@ export default function LoginScreen() {
                 onSubmit={async (values) => {
                   try {
                     clearError();
-
-                    // Send OTP via Firebase
                     const success = await sendOtp(values.phoneNumber);
-
                     if (success) {
                       router.push({
                         pathname: "/auth/otp",
-                        params: {
-                          phoneNumber: values.phoneNumber,
-                        },
+                        params: { phoneNumber: values.phoneNumber },
                       });
                     } else if (error) {
                       Alert.alert("Error", error);
                     }
                   } catch (err: any) {
-                    console.error("Login error:", err);
-                    Alert.alert(
-                      "Error",
-                      err.message || "Failed to send OTP. Please try again."
-                    );
+                    Alert.alert("Error", err.message || "Failed to send OTP.");
                   }
                 }}
               >
@@ -206,68 +133,83 @@ export default function LoginScreen() {
                   <View>
                     {/* Phone Input */}
                     <View className="mb-6">
-                      <Text className="text-sm font-semibold text-[#374151] mb-2">
+                      <Text className="text-xs font-bold text-gray-400 mb-2 ml-1 uppercase tracking-wider">
                         Phone Number
                       </Text>
-                      <View className="flex-row items-stretch">
-                        {/* Country Code with Flag */}
-                        <View className="bg-[#F9FAFB] rounded-l-2xl px-4 border-2 border-r-0 border-[#E5E7EB] flex-row items-center justify-center">
-                          <Text className="text-lg mr-1">🇮🇳</Text>
-                          <Text className="text-base text-[#1A1A1A] font-semibold">
+                      <View
+                        className="flex-row items-center bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden h-14"
+                        style={{
+                          shadowColor: "#000",
+                          shadowOffset: { width: 0, height: 2 },
+                          shadowOpacity: 0.03,
+                          shadowRadius: 4,
+                          elevation: 1,
+                        }}
+                      >
+                        <View className="px-4 border-r border-gray-200 h-full justify-center bg-white">
+                          <Text className="text-lg font-bold text-[#1A1A1A]">
                             +91
                           </Text>
                         </View>
-                        {/* Phone Input */}
-                        <View className="flex-1 flex-row items-center bg-[#F9FAFB] rounded-r-2xl px-4 border-2 border-l-0 border-[#E5E7EB]">
+                        <TextInput
+                          placeholder="Enter your number"
+                          keyboardType="number-pad"
+                          maxLength={10}
+                          value={values.phoneNumber}
+                          onChangeText={(text) => {
+                            // Only allow numeric characters and max 10 digits
+                            const numericText = text
+                              .replace(/[^0-9]/g, "")
+                              .slice(0, 10);
+                            handleChange("phoneNumber")(numericText);
+                          }}
+                          onBlur={handleBlur("phoneNumber")}
+                          placeholderTextColor="#9CA3AF"
+                          className="flex-1 px-4 text-lg text-[#1A1A1A] font-semibold h-full"
+                          style={{
+                            includeFontPadding: false,
+                            paddingTop: 0,
+                            paddingBottom: 0,
+                            textAlignVertical: "center",
+                          }}
+                          selectionColor="#F59E0B"
+                        />
+                        <View className="pr-4">
                           <Ionicons
                             name="call-outline"
                             size={20}
                             color="#9CA3AF"
-                            style={{ marginRight: 12 }}
-                          />
-                          <TextInput
-                            placeholder="Enter 10 digit number"
-                            keyboardType="phone-pad"
-                            maxLength={10}
-                            value={values.phoneNumber}
-                            onChangeText={handleChange("phoneNumber")}
-                            onBlur={handleBlur("phoneNumber")}
-                            placeholderTextColor="#9CA3AF"
-                            className="flex-1 text-base text-[#1A1A1A] py-4"
-                            style={{ padding: 0, paddingVertical: 16 }}
                           />
                         </View>
                       </View>
                       {touched.phoneNumber && errors.phoneNumber && (
-                        <Text className="text-red-500 text-xs mt-2 ml-2">
-                          {errors.phoneNumber}
-                        </Text>
+                        <View className="flex-row items-center mt-2 ml-1">
+                          <Ionicons
+                            name="alert-circle"
+                            size={14}
+                            color="#EF4444"
+                          />
+                          <Text className="text-red-500 text-xs ml-1.5 font-medium">
+                            {errors.phoneNumber}
+                          </Text>
+                        </View>
                       )}
                     </View>
 
-                    {/* Info Banner */}
-                    <View className="bg-gradient-to-r from-[#FFF5EB] to-[#FEF3C7] rounded-2xl p-4 mb-6 border border-[#FBBF24]/20">
-                      <View className="flex-row items-start">
-                        <View className="w-10 h-10 bg-[#FF6A00]/10 rounded-xl items-center justify-center">
-                          <Ionicons
-                            name="shield-checkmark"
-                            size={20}
-                            color="#FF6A00"
-                          />
-                        </View>
-                        <View className="flex-1 ml-3">
-                          <Text className="text-sm font-semibold text-[#92400E] mb-1">
-                            Secure Verification
-                          </Text>
-                          <Text className="text-xs text-[#A16207] leading-5">
-                            We&apos;ll send a 6-digit OTP to verify your identity. Your number is safe with us.
-                          </Text>
-                        </View>
-                      </View>
+                    {/* WhatsApp Notice - Simplified */}
+                    <View className="flex-row items-center justify-center mb-6 opacity-80">
+                      <Ionicons
+                        name="logo-whatsapp"
+                        size={14}
+                        color="#16A34A"
+                      />
+                      <Text className="text-xs text-gray-400 ml-2 font-medium">
+                        OTP will be sent via WhatsApp
+                      </Text>
                     </View>
 
                     <PrimaryButton
-                      title="Continue"
+                      title="Send OTP"
                       onPress={handleSubmit}
                       loading={loading}
                     />
@@ -276,27 +218,12 @@ export default function LoginScreen() {
               </Formik>
             </View>
 
-            {/* Stats/Social Proof */}
-            <View className="flex-row justify-center items-center mt-6 mb-4">
-              <View className="flex-row items-center px-4 py-2 bg-[#F0FDF4] rounded-full">
-                <MaterialCommunityIcons name="account-group" size={18} color="#10B981" />
-                <Text className="text-sm font-semibold text-[#10B981] ml-2">
-                  10,000+ Active Partners
-                </Text>
-              </View>
-            </View>
-
             {/* Footer */}
-            <View className="pt-4 pb-8">
-              <Text className="text-xs text-[#9CA3AF] text-center leading-5">
-                By continuing, you agree to our{" "}
-                <Text className="text-[#FF6A00] font-semibold">
-                  Terms of Service
-                </Text>{" "}
-                and{" "}
-                <Text className="text-[#FF6A00] font-semibold">
-                  Privacy Policy
-                </Text>
+            <View className="mt-8 items-center">
+              <Text className="text-xs text-gray-400 text-center font-medium px-10 leading-5">
+                By continuing you agree to our{" "}
+                <Text className="text-[#F59E0B] font-bold">Terms</Text> &{" "}
+                <Text className="text-[#F59E0B] font-bold">Privacy Policy</Text>
               </Text>
             </View>
           </Animated.View>

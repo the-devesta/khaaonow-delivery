@@ -2,10 +2,20 @@ import AnimatedStepIndicator from "@/components/ui/animated-step-indicator";
 import PrimaryButton from "@/components/ui/primary-button";
 import { useAuthStore } from "@/store/auth";
 import { Ionicons } from "@expo/vector-icons";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
-import { Alert, ScrollView, Text, TouchableOpacity, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import {
+  Alert,
+  Image,
+  ScrollView,
+  StatusBar,
+  Text,
+  TouchableOpacity,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 function InfoRow({
   icon,
@@ -19,20 +29,20 @@ function InfoRow({
   verified?: boolean;
 }) {
   return (
-    <View className="flex-row items-center py-3.5 border-b border-[#F3F4F6]">
-      <View className="w-10 h-10 bg-[#F9FAFB] rounded-xl items-center justify-center mr-3">
-        <Ionicons name={icon as any} size={18} color="#6B7280" />
+    <View className="flex-row items-center py-3.5 border-b border-white/10">
+      <View className="w-10 h-10 bg-white/10 rounded-xl items-center justify-center mr-3 border border-white/10">
+        <Ionicons name={icon as any} size={18} color="rgba(255,255,255,0.7)" />
       </View>
       <View className="flex-1">
-        <Text className="text-xs text-[#9CA3AF] mb-0.5">{label}</Text>
-        <Text className="text-[15px] font-semibold text-[#1A1A1A]">
-          {value}
+        <Text className="text-xs text-white/50 mb-0.5 uppercase tracking-wider">
+          {label}
         </Text>
+        <Text className="text-[15px] font-semibold text-white">{value}</Text>
       </View>
       {verified && (
-        <View className="bg-[#D1FAE5] rounded-full px-2 py-1 flex-row items-center">
-          <Ionicons name="checkmark-circle" size={14} color="#10B981" />
-          <Text className="text-xs text-[#10B981] font-medium ml-1">
+        <View className="bg-green-500/20 rounded-full px-2 py-1 flex-row items-center border border-green-500/30">
+          <Ionicons name="checkmark-circle" size={14} color="#4ADE80" />
+          <Text className="text-xs text-green-400 font-medium ml-1">
             Verified
           </Text>
         </View>
@@ -47,8 +57,9 @@ export default function ReviewAndSubmitScreen() {
   const [loading, setLoading] = useState(false);
   const [agreed, setAgreed] = useState(false);
   const { partner, phoneNumber } = useAuthStore();
+  const insets = useSafeAreaInsets();
 
-  // Collect registration data from auth store and route params
+  // Collect registration data
   const registrationData = {
     name: partner?.name || "",
     email: partner?.email || "",
@@ -58,7 +69,7 @@ export default function ReviewAndSubmitScreen() {
       : "",
     panNumber: params.panNumber
       ? `${String(params.panNumber).slice(0, 5)}••••${String(
-          params.panNumber
+          params.panNumber,
         ).slice(-1)}`
       : "",
     vehicleType: (params.vehicleType as string) || "",
@@ -66,34 +77,39 @@ export default function ReviewAndSubmitScreen() {
     drivingLicenseNumber: params.drivingLicenseNumber
       ? `DL••••••${String(params.drivingLicenseNumber).slice(-4)}`
       : "",
+    bankAccountName: (params.bankAccountName as string) || "",
+    bankAccountNumber: params.bankAccountNumber
+      ? `••••${String(params.bankAccountNumber).slice(-4)}`
+      : "",
+    bankIFSC: (params.bankIFSC as string) || "",
+    upiId: (params.upiId as string) || "",
   };
 
   const handleSubmit = async () => {
     if (!agreed) {
       Alert.alert(
         "Agreement Required",
-        "Please agree to the Terms of Service and Privacy Policy to continue."
+        "Please agree to the Terms of Service and Privacy Policy to continue.",
       );
       return;
     }
 
-    console.log('📤 [ReviewSubmit] Submitting application...');
+    console.log("📤 [ReviewSubmit] Submitting application...");
     setLoading(true);
-    
+
     try {
-      // Update local state to COMPLETED (not yet approved)
       const { updateOnboardingStatus } = useAuthStore.getState();
-      await updateOnboardingStatus('completed', 100);
-      
-      console.log('✅ [ReviewSubmit] Application submitted, navigating to pending screen...');
-      
-      // Navigate to account pending status
+      await updateOnboardingStatus("completed", 100);
+
+      console.log(
+        "✅ [ReviewSubmit] Application submitted, navigating to pending screen...",
+      );
       router.replace("/registration/account-pending");
     } catch (error) {
       console.error("❌ [ReviewSubmit] Registration error:", error);
       Alert.alert(
         "Error",
-        "Failed to complete registration. Please try again."
+        "Failed to complete registration. Please try again.",
       );
     } finally {
       setLoading(false);
@@ -101,80 +117,120 @@ export default function ReviewAndSubmitScreen() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#FAFAFA]">
+    <View className="flex-1 bg-black">
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      {/* Background Image with Blur */}
+      <View className="absolute w-full h-full overflow-hidden">
+        <Image
+          source={require("../../assets/images/reg-docs.png")} // Reusing docs image for review
+          className="w-full h-full"
+          resizeMode="cover"
+        />
+        <BlurView
+          intensity={40}
+          tint="dark"
+          className="absolute w-full h-full"
+        />
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.8)"]}
+          style={{ position: "absolute", width: "100%", height: "100%" }}
+        />
+      </View>
+
       <ScrollView
-        contentContainerStyle={{ flexGrow: 1 }}
+        contentContainerStyle={{
+          flexGrow: 1,
+          paddingTop: insets.top + 10,
+          paddingBottom: insets.bottom + 20,
+        }}
         showsVerticalScrollIndicator={false}
       >
-        <View className="flex-1 px-5 pt-16 pb-4">
-          {/* Header */}
-          <View className="flex-row items-center justify-between mb-8">
-            <TouchableOpacity
-              onPress={() => router.back()}
-              className="w-10 h-10 bg-white rounded-full items-center justify-center shadow-sm"
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
-            </TouchableOpacity>
-            <View className="flex-1 mx-4">
-              <AnimatedStepIndicator currentStep={5} totalSteps={5} />
-            </View>
-            <View className="w-10" />
-          </View>
+        {/* Header */}
+        <View className="px-6 mb-6">
+          <TouchableOpacity
+            onPress={() => router.back()}
+            className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center border border-white/10 mb-6"
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
+          </TouchableOpacity>
 
-          {/* Title Section */}
-          <View className="bg-white rounded-3xl p-6 mb-5 shadow-sm">
-            <View className="w-14 h-14 bg-[#D1FAE5] rounded-2xl items-center justify-center mb-4">
-              <Ionicons name="document-text" size={28} color="#10B981" />
-            </View>
-            <Text className="text-2xl font-bold text-[#1A1A1A] mb-2">
-              Review & Submit
-            </Text>
-            <Text className="text-[15px] text-[#6B7280] leading-6">
-              Please verify all your information before submitting your
-              application.
-            </Text>
+          <View className="items-center">
+            <AnimatedStepIndicator currentStep={5} totalSteps={5} />
           </View>
+        </View>
 
+        {/* Title Section */}
+        <View className="px-6 mb-8">
+          <Text className="text-4xl font-extrabold text-white mb-2 shadow-sm tracking-tight">
+            Review & Submit
+          </Text>
+          <Text className="text-lg text-white/80 font-medium tracking-wide">
+            Verify your information
+          </Text>
+        </View>
+
+        {/* Content Cards */}
+        <View className="px-6 pb-8 space-y-4">
           {/* Profile Card */}
-          <View className="bg-white rounded-3xl p-5 shadow-sm mb-5">
-            <View className="flex-row items-center">
-              <View className="w-16 h-16 bg-[#FFF5EB] rounded-2xl items-center justify-center">
-                <Ionicons name="person" size={32} color="#FF6A00" />
+          <View
+            className="bg-white/20 backdrop-blur-md rounded-[24px] p-5 border-2 border-white/20 shadow-lg shadow-black/20 mb-4"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 20,
+            }}
+          >
+            <View className="flex-row items-center mb-4">
+              <View className="w-12 h-12 bg-yellow-500/20 rounded-xl items-center justify-center border border-yellow-500/30">
+                <Ionicons name="person" size={24} color="#F59E0B" />
               </View>
               <View className="ml-4 flex-1">
-                <Text className="text-lg font-bold text-[#1A1A1A]">
+                <Text className="text-lg font-bold text-white">
                   {registrationData.name}
                 </Text>
-                <Text className="text-sm text-[#6B7280]">
+                <Text className="text-sm text-white/60">
                   {registrationData.email}
                 </Text>
-                <Text className="text-sm text-[#6B7280]">
+                <Text className="text-sm text-white/60">
                   {registrationData.phone}
                 </Text>
               </View>
               <TouchableOpacity
-                className="w-9 h-9 bg-[#F9FAFB] rounded-full items-center justify-center"
+                className="bg-white/10 p-2 rounded-full"
                 activeOpacity={0.7}
               >
-                <Ionicons name="pencil" size={16} color="#6B7280" />
+                <Ionicons name="pencil" size={16} color="white" />
               </TouchableOpacity>
             </View>
           </View>
 
           {/* KYC Documents */}
-          <View className="bg-white rounded-3xl p-5 shadow-sm mb-5">
+          <View
+            className="bg-white/20 backdrop-blur-md rounded-[24px] p-5 border-2 border-white/20 shadow-lg shadow-black/20 mb-4"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 20,
+            }}
+          >
             <View className="flex-row items-center justify-between mb-2">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-[#FEF3C7] rounded-xl items-center justify-center">
-                  <Text className="text-lg">🪪</Text>
-                </View>
-                <Text className="text-lg font-bold text-[#1A1A1A] ml-3">
-                  KYC Documents
-                </Text>
-              </View>
+              <Text className="text-lg font-bold text-white">
+                KYC Documents
+              </Text>
               <TouchableOpacity activeOpacity={0.7}>
-                <Ionicons name="pencil" size={16} color="#6B7280" />
+                <Ionicons
+                  name="pencil"
+                  size={16}
+                  color="rgba(255,255,255,0.6)"
+                />
               </TouchableOpacity>
             </View>
             <InfoRow
@@ -192,18 +248,23 @@ export default function ReviewAndSubmitScreen() {
           </View>
 
           {/* Vehicle Information */}
-          <View className="bg-white rounded-3xl p-5 shadow-sm mb-5">
+          <View
+            className="bg-white/20 backdrop-blur-md rounded-[24px] p-5 border-2 border-white/20 shadow-lg shadow-black/20 mb-4"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 20,
+            }}
+          >
             <View className="flex-row items-center justify-between mb-2">
-              <View className="flex-row items-center">
-                <View className="w-10 h-10 bg-[#DBEAFE] rounded-xl items-center justify-center">
-                  <Text className="text-lg">🏍️</Text>
-                </View>
-                <Text className="text-lg font-bold text-[#1A1A1A] ml-3">
-                  Vehicle Info
-                </Text>
-              </View>
+              <Text className="text-lg font-bold text-white">Vehicle Info</Text>
               <TouchableOpacity activeOpacity={0.7}>
-                <Ionicons name="pencil" size={16} color="#6B7280" />
+                <Ionicons
+                  name="pencil"
+                  size={16}
+                  color="rgba(255,255,255,0.6)"
+                />
               </TouchableOpacity>
             </View>
             <InfoRow
@@ -224,51 +285,97 @@ export default function ReviewAndSubmitScreen() {
             />
           </View>
 
+          {/* Bank Details */}
+          <View
+            className="bg-white/20 backdrop-blur-md rounded-[24px] p-5 border-2 border-white/20 shadow-lg shadow-black/20 mb-4"
+            style={{
+              shadowColor: "#000",
+              shadowOffset: { width: 0, height: 10 },
+              shadowOpacity: 0.3,
+              shadowRadius: 20,
+            }}
+          >
+            <View className="flex-row items-center justify-between mb-2">
+              <Text className="text-lg font-bold text-white">Bank Details</Text>
+              <TouchableOpacity activeOpacity={0.7}>
+                <Ionicons
+                  name="pencil"
+                  size={16}
+                  color="rgba(255,255,255,0.6)"
+                />
+              </TouchableOpacity>
+            </View>
+            <InfoRow
+              icon="person"
+              label="Account Holder"
+              value={registrationData.bankAccountName}
+            />
+            <InfoRow
+              icon="card"
+              label="Account Number"
+              value={registrationData.bankAccountNumber}
+            />
+            <InfoRow
+              icon="business"
+              label="IFSC Code"
+              value={registrationData.bankIFSC}
+            />
+            {registrationData.upiId ? (
+              <InfoRow
+                icon="qr-code"
+                label="UPI ID"
+                value={registrationData.upiId}
+              />
+            ) : null}
+          </View>
+
           {/* Terms Agreement */}
           <TouchableOpacity
             onPress={() => setAgreed(!agreed)}
             activeOpacity={0.8}
-            className="bg-white rounded-3xl p-5 shadow-sm mb-5 flex-row items-start"
+            className={`rounded-[24px] p-5 flex-row items-start border ${
+              agreed
+                ? "bg-yellow-500/10 border-yellow-500/50"
+                : "bg-white/5 border-white/10"
+            } mb-6`}
           >
             <View
               className={`w-6 h-6 rounded-lg border-2 items-center justify-center mr-3 mt-0.5 ${
                 agreed
-                  ? "bg-[#FF6A00] border-[#FF6A00]"
-                  : "border-[#D1D5DB] bg-white"
+                  ? "bg-[#F59E0B] border-[#F59E0B]"
+                  : "border-white/30 bg-transparent"
               }`}
             >
               {agreed && <Ionicons name="checkmark" size={16} color="white" />}
             </View>
-            <Text className="flex-1 text-[15px] text-[#6B7280] leading-6">
+            <Text className="flex-1 text-[14px] text-white/70 leading-5">
               I agree to the{" "}
-              <Text className="text-[#FF6A00] font-semibold">
+              <Text className="text-yellow-400 font-bold">
                 Terms of Service
               </Text>{" "}
               and{" "}
-              <Text className="text-[#FF6A00] font-semibold">
-                Privacy Policy
-              </Text>
-              . I confirm that all the information provided is accurate.
+              <Text className="text-yellow-400 font-bold">Privacy Policy</Text>.
+              I confirm that all the information provided is accurate.
             </Text>
           </TouchableOpacity>
 
           {/* Submit Button */}
-          <View className="pb-6 pt-2">
+          <View className="pb-6">
             <PrimaryButton
               title="Submit Application"
               onPress={handleSubmit}
               loading={loading}
               disabled={!agreed}
             />
-            <View className="flex-row items-center justify-center mt-4">
-              <Ionicons name="shield-checkmark" size={16} color="#10B981" />
-              <Text className="text-xs text-[#6B7280] ml-1.5">
+            <View className="flex-row items-center justify-center mt-4 opacity-70">
+              <Ionicons name="shield-checkmark" size={16} color="#4ADE80" />
+              <Text className="text-xs text-white/60 ml-1.5">
                 Your data is encrypted and secure
               </Text>
             </View>
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }

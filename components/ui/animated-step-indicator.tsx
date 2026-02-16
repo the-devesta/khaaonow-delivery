@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Animated, Text, View } from "react-native";
 
 interface AnimatedStepIndicatorProps {
@@ -48,7 +48,7 @@ function AnimatedStep({
             duration: 1000,
             useNativeDriver: true,
           }),
-        ])
+        ]),
       ).start();
     } else {
       opacityAnim.setValue(1);
@@ -88,7 +88,7 @@ function AnimatedStep({
               width: 48,
               height: 48,
               borderRadius: 24,
-              backgroundColor: "#FF6A00",
+              backgroundColor: "#FFC107",
               opacity: opacityAnim.interpolate({
                 inputRange: [0.6, 1],
                 outputRange: [0.15, 0.25],
@@ -104,18 +104,18 @@ function AnimatedStep({
           }}
           className={`w-10 h-10 rounded-full items-center justify-center ${
             isCompleted
-              ? "bg-[#FF6A00] shadow-lg"
+              ? "bg-[#FFC107] shadow-lg shadow-yellow-500/50"
               : isActive
-              ? "bg-[#FF6A00] shadow-xl"
-              : "bg-[#F3F4F6] border-2 border-[#E5E7EB]"
+                ? "bg-[#FFC107] shadow-xl shadow-yellow-500/50"
+                : "bg-white/20 border-2 border-white/10"
           }`}
         >
           {isCompleted ? (
-            <Ionicons name="checkmark" size={20} color="white" />
+            <Ionicons name="checkmark" size={20} color="black" />
           ) : (
             <Text
               className={`text-sm font-bold ${
-                isActive ? "text-white" : "text-[#9CA3AF]"
+                isActive ? "text-black" : "text-white/70"
               }`}
             >
               {step}
@@ -126,19 +126,19 @@ function AnimatedStep({
         {/* Active step indicator dot */}
         {isActive && (
           <View className="absolute -bottom-3">
-            <View className="w-1.5 h-1.5 rounded-full bg-[#FF6A00]" />
+            <View className="w-1.5 h-1.5 rounded-full bg-[#FFC107]" />
           </View>
         )}
       </View>
 
       {/* Connecting Line */}
       {!isLast && (
-        <View className="flex-1 h-1 bg-[#F3F4F6] mx-2 rounded-full overflow-hidden">
+        <View className="flex-1 h-1 bg-white/20 mx-2 rounded-full overflow-hidden">
           <Animated.View
             style={{
               width: lineWidth,
               height: "100%",
-              backgroundColor: "#FF6A00",
+              backgroundColor: "#FFC107",
               borderRadius: 999,
             }}
           />
@@ -155,7 +155,7 @@ export default function AnimatedStepIndicator({
   const steps = Array.from({ length: totalSteps }, (_, i) => i + 1);
 
   return (
-    <View className="flex-row items-center px-4">
+    <View className="flex-row items-center w-full justify-between">
       {steps.map((step, index) => (
         <AnimatedStep
           key={step}

@@ -1,5 +1,5 @@
 import PrimaryButton from "@/components/ui/primary-button";
-import { usePhoneAuth } from "@/hooks/use-phone-auth";
+import { useWhatsAppAuth } from "@/hooks/use-whatsapp-auth";
 import { useAuthStore } from "@/store/auth";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -21,9 +21,9 @@ export default function OtpScreen() {
   const params = useLocalSearchParams();
   const phoneNumber = params.phoneNumber as string;
 
-  const { sendOtp, verifyOtp, loading, error, clearError } = usePhoneAuth();
+  const { sendOtp, verifyOtp, loading, error, clearError } = useWhatsAppAuth();
   const { setAuthenticated, getNavigationRoute } = useAuthStore();
-  
+
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
@@ -59,13 +59,13 @@ export default function OtpScreen() {
 
     try {
       clearError();
-      console.log('🔐 [OTP] Verifying OTP...');
+      console.log("🔐 [OTP] Verifying OTP...");
 
-      // Verify OTP with Firebase and backend
-      const response = await verifyOtp(otpValue);
+      // Verify OTP with WhatsApp backend
+      const response = await verifyOtp(phoneNumber, otpValue);
 
       if (response.success && response.data) {
-        console.log('✅ [OTP] Verification successful:', {
+        console.log("✅ [OTP] Verification successful:", {
           deliveryPartnerId: response.data.deliveryPartnerId,
           onboardingStatus: response.data.onboardingStatus,
           onboardingProgress: response.data.onboardingProgress,
@@ -84,18 +84,18 @@ export default function OtpScreen() {
           response.data.token,
           response.data.onboardingStatus,
           response.data.onboardingProgress,
-          response.data.isApproved || false
+          response.data.isApproved || false,
         );
 
         // Get the correct navigation route based on state
         const route = getNavigationRoute();
-        console.log('🧭 [OTP] Navigating to:', route);
-        
+        console.log("🧭 [OTP] Navigating to:", route);
+
         router.replace(route as any);
       } else {
         Alert.alert(
           "Verification Failed",
-          response.message || "Failed to verify OTP. Please try again."
+          response.message || "Failed to verify OTP. Please try again.",
         );
       }
     } catch (err: any) {
@@ -108,7 +108,7 @@ export default function OtpScreen() {
     setResendLoading(true);
     try {
       clearError();
-      console.log('📤 [OTP] Resending OTP...');
+      console.log("📤 [OTP] Resending OTP...");
       const success = await sendOtp(phoneNumber);
 
       if (success) {
@@ -130,20 +130,17 @@ export default function OtpScreen() {
     <SafeAreaView className="flex-1 bg-white">
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
+        className="flex-1">
         <ScrollView
           contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="always"
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           <View className="flex-1 px-6 pt-12">
             {/* Back Button */}
             <TouchableOpacity
               onPress={() => router.back()}
               className="w-12 h-12 bg-[#F8F8F8] rounded-full items-center justify-center mb-8"
-              activeOpacity={0.7}
-            >
+              activeOpacity={0.7}>
               <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
             </TouchableOpacity>
 
@@ -168,8 +165,7 @@ export default function OtpScreen() {
                   className="w-14 h-16 bg-[#F8F8F8] rounded-2xl border-2 items-center justify-center"
                   style={{
                     borderColor: digit ? "#FF6A00" : "#E5E5E5",
-                  }}
-                >
+                  }}>
                   <TextInput
                     ref={(ref) => {
                       inputRefs.current[index] = ref;
@@ -180,11 +176,11 @@ export default function OtpScreen() {
                     keyboardType="number-pad"
                     maxLength={1}
                     className="text-2xl font-bold text-[#1A1A1A] text-center"
-                    style={{ 
-                      width: '100%', 
-                      height: '100%', 
+                    style={{
+                      width: "100%",
+                      height: "100%",
                       padding: 0,
-                      textAlign: 'center',
+                      textAlign: "center",
                     }}
                     autoFocus={index === 0}
                     selectTextOnFocus
@@ -208,8 +204,7 @@ export default function OtpScreen() {
                 <TouchableOpacity
                   onPress={handleResendOtp}
                   activeOpacity={0.7}
-                  disabled={resendLoading}
-                >
+                  disabled={resendLoading}>
                   <Text className="text-sm font-semibold text-[#FF6A00]">
                     Resend OTP
                   </Text>

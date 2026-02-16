@@ -1,41 +1,44 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import axios, { AxiosError, AxiosInstance } from 'axios';
-import Constants from 'expo-constants';
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import axios, { AxiosError, AxiosInstance } from "axios";
+import Constants from "expo-constants";
 
 // API Configuration
 // Priority order:
 // 1. EXPO_PUBLIC_API_URL environment variable (for production builds)
-// 2. __DEV__ mode: Uses local backend 
+// 2. __DEV__ mode: Uses local backend
 // 3. Fallback: Production backend
 
 const getApiUrl = () => {
   // Check environment variable first (set in .env.local or eas.json)
-  const envApiUrl = Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL;
-  
+  const envApiUrl =
+    Constants.expoConfig?.extra?.apiUrl || process.env.EXPO_PUBLIC_API_URL;
+
   if (envApiUrl) {
-    console.log('🌐 [API] Using environment API URL:', envApiUrl);
+    console.log("🌐 [API] Using environment API URL:", envApiUrl);
     return envApiUrl;
   }
-  
+
   // Development mode: use local backend
   if (__DEV__) {
     // For local testing, you can override this by setting EXPO_PUBLIC_API_URL in .env.local
-    const localUrl = 'http://localhost:7071/'; // Update this to your current IP
-    console.log('🌐 [API] DEV mode - Using local backend:', localUrl);
-    console.log('💡 [API] To use a different URL, set EXPO_PUBLIC_API_URL in .env.local');
+    const localUrl = "http://localhost:3001/api"; // Update this to your current IP
+    console.log("🌐 [API] DEV mode - Using local backend:", localUrl);
+    console.log(
+      "💡 [API] To use a different URL, set EXPO_PUBLIC_API_URL in .env.local",
+    );
     return localUrl;
   }
-  
+
   // Production fallback
-  const productionUrl = 'https://khaaonow-be.azurewebsites.net/api';
-  console.log('🌐 [API] Using production backend:', productionUrl);
+  const productionUrl = "https://khaaonow-be.azurewebsites.net/api";
+  console.log("🌐 [API] Using production backend:", productionUrl);
   return productionUrl;
 };
 
-const API_BASE_URL = getApiUrl();
-const TOKEN_KEY = 'delivery_partner_token';
+export const API_BASE_URL = getApiUrl();
+const TOKEN_KEY = "delivery_partner_token";
 
-console.log('🌐 [API] Final backend URL:', API_BASE_URL);
+console.log("🌐 [API] Final backend URL:", API_BASE_URL);
 
 // Interfaces
 interface ApiResponse<T = any> {
@@ -84,6 +87,7 @@ interface BankDetailsData {
   bankAccountNumber: string;
   bankIFSC: string;
   bankAccountPhoto?: string;
+  upiId?: string;
 }
 
 interface DeliveryPartner {
@@ -102,6 +106,15 @@ interface DeliveryPartner {
   totalOrders: number;
   completedOrders: number;
   isActive: boolean;
+  vehicleType?: string;
+  vehicleNumber?: string;
+  bankDetails?: {
+    accountName: string;
+    accountNumber: string;
+    ifsc: string;
+    photoUrl?: string;
+  };
+  upiId?: string;
 }
 
 // Axios Instance
@@ -113,7 +126,7 @@ class ApiClient {
       baseURL: API_BASE_URL,
       timeout: 30000,
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
       },
     });
 
@@ -122,13 +135,19 @@ class ApiClient {
       async (config) => {
         const token = await AsyncStorage.getItem(TOKEN_KEY);
         if (token) {
+          console.log("🔑 [API] Attaching token to request:", config.url);
           config.headers.Authorization = `Bearer ${token}`;
+        } else {
+          console.warn(
+            "⚠️ [API] No token found in storage for request:",
+            config.url,
+          );
         }
         return config;
       },
       (error) => {
         return Promise.reject(error);
-      }
+      },
     );
 
     // Response Interceptor
@@ -140,7 +159,7 @@ class ApiClient {
           await AsyncStorage.removeItem(TOKEN_KEY);
         }
         return Promise.reject(error);
-      }
+      },
     );
   }
 
@@ -175,46 +194,49 @@ const apiClient = new ApiClient();
 // API Service
 export const ApiService = {
   // ==================== AUTHENTICATION ====================
-  
+
   /**
    * Verify Firebase Phone Token
    * This is the primary authentication method using Firebase
    */
-  async verifyPhoneToken(idToken: string, phone: string): Promise<LoginResponse> {
+  async verifyPhoneToken(
+    idToken: string,
+    phone: string,
+  ): Promise<LoginResponse> {
     try {
       const response = await apiClient.post<LoginResponse>(
-        '/delivery-partners/auth/verify-phone-token',
-        { idToken, phone }
+        "/delivery-partners/auth/verify-phone-token",
+        { idToken, phone },
       );
-      
+
       // Store token if available
       if (response.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, response.data.token);
       }
-      
+
       return response;
     } catch (error: any) {
-      console.error('Verify phone token error:', error);
-      
+      console.error("Verify phone token error:", error);
+
       // Check if this is an "account already exists" error - treat as successful login
-      const errorMessage = error.response?.data?.message || '';
+      const errorMessage = error.response?.data?.message || "";
       const errorData = error.response?.data?.data;
-      
-      if (errorMessage.toLowerCase().includes('already exists') && errorData) {
+
+      if (errorMessage.toLowerCase().includes("already exists") && errorData) {
         // Backend returned existing account data - treat as successful login
-        console.log('📱 [Auth] Existing account detected, treating as login');
-        
+        console.log("📱 [Auth] Existing account detected, treating as login");
+
         if (errorData.token) {
           await AsyncStorage.setItem(TOKEN_KEY, errorData.token);
         }
-        
+
         return {
           success: true,
-          message: 'Login successful',
+          message: "Login successful",
           data: errorData,
         };
       }
-      
+
       // Also check if the error response contains success data (some API versions)
       if (error.response?.data?.success && error.response?.data?.data) {
         const data = error.response.data.data;
@@ -223,14 +245,15 @@ export const ApiService = {
         }
         return {
           success: true,
-          message: error.response.data.message || 'Login successful',
+          message: error.response.data.message || "Login successful",
           data: data,
         };
       }
-      
+
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to verify phone token',
+        message:
+          error.response?.data?.message || "Failed to verify phone token",
       };
     }
   },
@@ -242,19 +265,21 @@ export const ApiService = {
   async sendOtp(phoneNumber: string): Promise<LoginResponse> {
     try {
       // Format phone number to E.164 format (+91XXXXXXXXXX)
-      const phone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-      
+      const phone = phoneNumber.startsWith("+")
+        ? phoneNumber
+        : `+91${phoneNumber}`;
+
       const response = await apiClient.post<LoginResponse>(
-        '/delivery-partners/auth/send-otp',
-        { phone }
+        "/delivery-partners/auth/send-otp",
+        { phone },
       );
-      
+
       return response;
     } catch (error: any) {
-      console.error('Send OTP error:', error);
+      console.error("Send OTP error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to send OTP',
+        message: error.response?.data?.message || "Failed to send OTP",
       };
     }
   },
@@ -266,51 +291,62 @@ export const ApiService = {
   async verifyOtp(phoneNumber: string, otp: string): Promise<LoginResponse> {
     try {
       // Format phone number to E.164 format (+91XXXXXXXXXX)
-      const phone = phoneNumber.startsWith('+') ? phoneNumber : `+91${phoneNumber}`;
-      
+      const phone = phoneNumber.startsWith("+")
+        ? phoneNumber
+        : `+91${phoneNumber}`;
+
       const response = await apiClient.post<LoginResponse>(
-        '/delivery-partners/auth/verify-otp',
-        { phone, otp }
+        "/delivery-partners/auth/verify-otp",
+        { phone, otp },
       );
-      
+
       // Store token if available
       if (response.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, response.data.token);
       }
-      
+
       return response;
     } catch (error: any) {
-      console.error('Verify OTP error:', error);
+      console.error("Verify OTP error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to verify OTP',
+        message: error.response?.data?.message || "Failed to verify OTP",
       };
     }
   },
 
   // ==================== PROFILE MANAGEMENT ====================
-  
+
   /**
    * Complete delivery partner profile
    */
-  async completeProfile(data: ProfileData): Promise<ApiResponse<{ partner: DeliveryPartner; token: string }>> {
+  async completeProfile(
+    data: ProfileData,
+  ): Promise<ApiResponse<{ partner: DeliveryPartner; token: string }>> {
     try {
-      const response = await apiClient.post<ApiResponse>(
-        '/delivery-partners/profile/complete',
-        data
+      console.log(
+        "📤 [API] Completing profile with data:",
+        JSON.stringify(data, null, 2),
       );
-      
+      const response = await apiClient.post<ApiResponse>(
+        "/delivery-partners/profile/complete",
+        data,
+      );
+
       // Update token if new one is provided
       if (response.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, response.data.token);
       }
-      
+
+      console.log("✅ [API] Profile completion successful:", response);
       return response;
     } catch (error: any) {
-      console.error('Complete profile error:', error);
+      console.error("❌ [API] Complete profile error:", error);
+      console.error("❌ [API] Error Response Data:", error.response?.data);
+      console.error("❌ [API] Error Status:", error.response?.status);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to complete profile',
+        message: error.response?.data?.message || "Failed to complete profile",
       };
     }
   },
@@ -318,18 +354,20 @@ export const ApiService = {
   /**
    * Upload registration documents
    */
-  async uploadDocuments(data: DocumentsData): Promise<ApiResponse<{ partner: DeliveryPartner }>> {
+  async uploadDocuments(
+    data: DocumentsData,
+  ): Promise<ApiResponse<{ partner: DeliveryPartner }>> {
     try {
       const response = await apiClient.post<ApiResponse>(
-        '/delivery-partners/documents/upload',
-        data
+        "/delivery-partners/documents/upload",
+        data,
       );
       return response;
     } catch (error: any) {
-      console.error('Upload documents error:', error);
+      console.error("Upload documents error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to upload documents',
+        message: error.response?.data?.message || "Failed to upload documents",
       };
     }
   },
@@ -337,18 +375,20 @@ export const ApiService = {
   /**
    * Add bank details
    */
-  async addBankDetails(data: BankDetailsData): Promise<ApiResponse<{ partner: DeliveryPartner }>> {
+  async addBankDetails(
+    data: BankDetailsData,
+  ): Promise<ApiResponse<{ partner: DeliveryPartner }>> {
     try {
       const response = await apiClient.post<ApiResponse>(
-        '/delivery-partners/bank-details',
-        data
+        "/delivery-partners/bank-details",
+        data,
       );
       return response;
     } catch (error: any) {
-      console.error('Add bank details error:', error);
+      console.error("Add bank details error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to add bank details',
+        message: error.response?.data?.message || "Failed to add bank details",
       };
     }
   },
@@ -357,7 +397,9 @@ export const ApiService = {
    * Submit complete registration (combines all steps)
    * Legacy method - kept for backward compatibility
    */
-  async submitRegistration(data: any): Promise<{ success: boolean; message: string; partnerId?: string }> {
+  async submitRegistration(
+    data: any,
+  ): Promise<{ success: boolean; message: string; partnerId?: string }> {
     try {
       // Step 1: Complete Profile
       await this.completeProfile({
@@ -381,31 +423,53 @@ export const ApiService = {
 
       return {
         success: true,
-        message: 'Registration submitted successfully',
+        message: "Registration submitted successfully",
       };
     } catch (error: any) {
-      console.error('Submit registration error:', error);
+      console.error("Submit registration error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to submit registration',
+        message:
+          error.response?.data?.message || "Failed to submit registration",
       };
     }
   },
 
   // ==================== PARTNER PROFILE ====================
-  
+
   /**
    * Get current partner profile
    */
   async getProfile(): Promise<ApiResponse<DeliveryPartner>> {
     try {
-      const response = await apiClient.get<ApiResponse>('/delivery-partners/profile');
+      const response = await apiClient.get<ApiResponse>(
+        "/delivery-partners/profile",
+      );
       return response;
     } catch (error: any) {
-      console.error('Get profile error:', error);
+      console.error("Get profile error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get profile',
+        message: error.response?.data?.message || "Failed to get profile",
+      };
+    }
+  },
+
+  /**
+   * Update partner profile
+   */
+  async updateProfile(data: any): Promise<ApiResponse<DeliveryPartner>> {
+    try {
+      const response = await apiClient.put<ApiResponse>(
+        "/delivery-partners/profile",
+        data,
+      );
+      return response;
+    } catch (error: any) {
+      console.error("Update profile error:", error);
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to update profile",
       };
     }
   },
@@ -413,18 +477,21 @@ export const ApiService = {
   /**
    * Update partner location
    */
-  async updateLocation(latitude: number, longitude: number): Promise<ApiResponse> {
+  async updateLocation(
+    latitude: number,
+    longitude: number,
+  ): Promise<ApiResponse> {
     try {
       const response = await apiClient.post<ApiResponse>(
-        '/delivery-partners/location',
-        { latitude, longitude }
+        "/delivery-partners/location",
+        { latitude, longitude },
       );
       return response;
     } catch (error: any) {
-      console.error('Update location error:', error);
+      console.error("Update location error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to update location',
+        message: error.response?.data?.message || "Failed to update location",
       };
     }
   },
@@ -432,38 +499,41 @@ export const ApiService = {
   /**
    * Toggle online/offline status
    */
-  async toggleOnlineStatus(isOnline: boolean): Promise<ApiResponse<{ isActive: boolean }>> {
+  async toggleOnlineStatus(
+    isOnline: boolean,
+  ): Promise<ApiResponse<{ isActive: boolean }>> {
     try {
       const response = await apiClient.post<ApiResponse>(
-        '/delivery-partners/toggle-status',
-        { isActive: isOnline }
+        "/delivery-partners/toggle-status",
+        { isActive: isOnline },
       );
       return response;
     } catch (error: any) {
-      console.error('Toggle status error:', error);
+      console.error("Toggle status error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to toggle status',
+        message: error.response?.data?.message || "Failed to toggle status",
       };
     }
   },
 
   // ==================== ORDERS ====================
-  
+
   /**
    * Get available orders for the delivery partner
    */
   async getAvailableOrders(): Promise<ApiResponse<any[]>> {
     try {
       const response = await apiClient.get<ApiResponse>(
-        '/delivery-partners/orders/available'
+        "/delivery-partners/orders/available",
       );
       return response;
     } catch (error: any) {
-      console.error('Get available orders error:', error);
+      console.error("Get available orders error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get available orders',
+        message:
+          error.response?.data?.message || "Failed to get available orders",
         data: [],
       };
     }
@@ -475,14 +545,15 @@ export const ApiService = {
   async getAssignedOrders(): Promise<ApiResponse<any[]>> {
     try {
       const response = await apiClient.get<ApiResponse>(
-        '/delivery-partners/orders/assigned'
+        "/delivery-partners/orders/assigned",
       );
       return response;
     } catch (error: any) {
-      console.error('Get assigned orders error:', error);
+      console.error("Get assigned orders error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get assigned orders',
+        message:
+          error.response?.data?.message || "Failed to get assigned orders",
         data: [],
       };
     }
@@ -494,14 +565,14 @@ export const ApiService = {
   async getOrderById(orderId: string): Promise<ApiResponse<any>> {
     try {
       const response = await apiClient.get<ApiResponse>(
-        `/delivery-partners/orders/${orderId}`
+        `/delivery-partners/orders/${orderId}`,
       );
       return response;
     } catch (error: any) {
-      console.error('Get order error:', error);
+      console.error("Get order error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get order details',
+        message: error.response?.data?.message || "Failed to get order details",
       };
     }
   },
@@ -512,14 +583,14 @@ export const ApiService = {
   async acceptOrder(orderId: string): Promise<ApiResponse> {
     try {
       const response = await apiClient.post<ApiResponse>(
-        `/delivery-partners/orders/${orderId}/accept`
+        `/delivery-partners/orders/${orderId}/accept`,
       );
       return response;
     } catch (error: any) {
-      console.error('Accept order error:', error);
+      console.error("Accept order error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to accept order',
+        message: error.response?.data?.message || "Failed to accept order",
       };
     }
   },
@@ -530,14 +601,14 @@ export const ApiService = {
   async rejectOrder(orderId: string): Promise<ApiResponse> {
     try {
       const response = await apiClient.post<ApiResponse>(
-        `/delivery-partners/orders/${orderId}/reject`
+        `/delivery-partners/orders/${orderId}/reject`,
       );
       return response;
     } catch (error: any) {
-      console.error('Reject order error:', error);
+      console.error("Reject order error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to reject order',
+        message: error.response?.data?.message || "Failed to reject order",
       };
     }
   },
@@ -548,14 +619,14 @@ export const ApiService = {
   async getActiveOrder(): Promise<ApiResponse<any>> {
     try {
       const response = await apiClient.get<ApiResponse>(
-        '/delivery-partners/orders/active'
+        "/delivery-partners/orders/active",
       );
       return response;
     } catch (error: any) {
-      console.error('Get active order error:', error);
+      console.error("Get active order error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get active order',
+        message: error.response?.data?.message || "Failed to get active order",
         data: null,
       };
     }
@@ -564,18 +635,22 @@ export const ApiService = {
   /**
    * Update order status
    */
-  async updateOrderStatus(orderId: string, status: string): Promise<ApiResponse> {
+  async updateOrderStatus(
+    orderId: string,
+    status: string,
+  ): Promise<ApiResponse> {
     try {
       const response = await apiClient.patch<ApiResponse>(
         `/delivery-partners/orders/${orderId}/status`,
-        { status }
+        { status },
       );
       return response;
     } catch (error: any) {
-      console.error('Update order status error:', error);
+      console.error("Update order status error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to update order status',
+        message:
+          error.response?.data?.message || "Failed to update order status",
       };
     }
   },
@@ -583,38 +658,43 @@ export const ApiService = {
   /**
    * Get order history
    */
-  async getOrderHistory(page: number = 1, limit: number = 20): Promise<ApiResponse<any[]>> {
+  async getOrderHistory(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<ApiResponse<any[]>> {
     try {
       const response = await apiClient.get<ApiResponse>(
-        `/delivery-partners/orders/history?page=${page}&limit=${limit}`
+        `/delivery-partners/orders/history?page=${page}&limit=${limit}`,
       );
       return response;
     } catch (error: any) {
-      console.error('Get order history error:', error);
+      console.error("Get order history error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get order history',
+        message: error.response?.data?.message || "Failed to get order history",
         data: [],
       };
     }
   },
 
   // ==================== EARNINGS ====================
-  
+
   /**
    * Get earnings summary
    */
-  async getEarnings(period: 'today' | 'week' | 'month' = 'today'): Promise<ApiResponse<any>> {
+  async getEarnings(
+    period: "today" | "week" | "month" = "today",
+  ): Promise<ApiResponse<any>> {
     try {
       const response = await apiClient.get<ApiResponse>(
-        `/delivery-partners/earnings?period=${period}`
+        `/delivery-partners/earnings?period=${period}`,
       );
       return response;
     } catch (error: any) {
-      console.error('Get earnings error:', error);
+      console.error("Get earnings error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get earnings',
+        message: error.response?.data?.message || "Failed to get earnings",
         data: {
           today: 0,
           week: 0,
@@ -629,18 +709,43 @@ export const ApiService = {
    */
   async getDashboardData(): Promise<ApiResponse<any>> {
     try {
-      const response = await apiClient.get<ApiResponse>('/delivery-partners/dashboard');
+      const response = await apiClient.get<ApiResponse>(
+        "/delivery-partners/dashboard",
+      );
       return response;
     } catch (error: any) {
-      console.error('Get dashboard data error:', error);
+      console.error("Get dashboard data error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to get dashboard data',
+        message:
+          error.response?.data?.message || "Failed to get dashboard data",
         data: {
           earnings: { today: 0, week: 0, month: 0 },
           stats: { deliveriesToday: 0, shiftsCompleted: 0, activeOrders: 0 },
           onlineStatus: false,
         },
+      };
+    }
+  },
+
+  /**
+   * Get user notifications
+   */
+  async getNotifications(
+    page: number = 1,
+    limit: number = 20,
+  ): Promise<ApiResponse<any>> {
+    try {
+      const response = await apiClient.get<ApiResponse>(
+        `/notifications/user?page=${page}&limit=${limit}`,
+      );
+      return response;
+    } catch (error: any) {
+      console.error("Get notifications error:", error);
+      return {
+        success: false,
+        message: error.response?.data?.message || "Failed to get notifications",
+        data: [],
       };
     }
   },
@@ -659,38 +764,43 @@ export const ApiService = {
   }): Promise<LoginResponse> {
     try {
       const response = await apiClient.post<any>(
-        '/delivery-partners/auth/google',
-        googleData
+        "/delivery-partners/auth/google",
+        googleData,
       );
-      
+
       // Store token if available
       if (response.data?.token) {
         await AsyncStorage.setItem(TOKEN_KEY, response.data.token);
       }
-      
+
       return {
         success: response.success,
         message: response.message,
         data: {
-          phone: response.data?.partner?.phone || '',
-          deliveryPartnerId: response.data?.partner?.id || response.data?.partner?._id,
+          phone: response.data?.partner?.phone || "",
+          deliveryPartnerId:
+            response.data?.partner?.id || response.data?.partner?._id,
           token: response.data?.token,
           onboardingStatus: response.data?.partner?.onboardingStatus,
-          onboardingProgress: response.data?.onboardingProgress || response.data?.partner?.onboardingProgress,
-          profileComplete: response.data?.partner?.onboardingStatus === 'completed',
+          onboardingProgress:
+            response.data?.onboardingProgress ||
+            response.data?.partner?.onboardingProgress,
+          profileComplete:
+            response.data?.partner?.onboardingStatus === "completed",
         },
       };
     } catch (error: any) {
-      console.error('Google login error:', error);
+      console.error("Google login error:", error);
       return {
         success: false,
-        message: error.response?.data?.message || 'Failed to authenticate with Google',
+        message:
+          error.response?.data?.message || "Failed to authenticate with Google",
       };
     }
   },
 
   // ==================== UTILITY ====================
-  
+
   /**
    * Store authentication token
    */
@@ -718,6 +828,83 @@ export const ApiService = {
   async isAuthenticated(): Promise<boolean> {
     const token = await AsyncStorage.getItem(TOKEN_KEY);
     return !!token;
+  },
+
+  // ==================== DELIVERY PARTNER WHATSAPP OTP ====================
+
+  /**
+   * Send OTP to delivery partner via WhatsApp
+   * Uses WhatsApp Business API for OTP delivery
+   */
+  async sendDeliveryPartnerOtp(
+    phoneNumber: string,
+  ): Promise<ApiResponse<{ phone: string; expiresIn: number; otp?: string }>> {
+    try {
+      // Format phone number to E.164 format (+91XXXXXXXXXX)
+      // Remove non-digits first, then ensure +91 prefix
+      let phone = phoneNumber.replace(/\D/g, "");
+
+      // If user entered 10 digits, add 91. If 12 (with 91), keep it.
+      if (phone.length === 10) {
+        phone = `91${phone}`;
+      } else if (phone.length === 12 && phone.startsWith("91")) {
+        // already has 91
+      } else if (phone.startsWith("0")) {
+        phone = `91${phone.substring(1)}`;
+      }
+
+      // Ensure + prefix
+      const formattedPhone = `+${phone}`;
+
+      const response = await apiClient.post<ApiResponse>(
+        "/delivery-partners/auth/send-otp",
+        { phone: formattedPhone },
+      );
+
+      return response;
+    } catch (error: any) {
+      console.error("Send delivery partner OTP error:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Verify delivery partner OTP
+   * Returns JWT token and partner data on success
+   */
+  async verifyDeliveryPartnerOtp(
+    phoneNumber: string,
+    otp: string,
+  ): Promise<LoginResponse> {
+    try {
+      // Format phone number to E.164 format (+91XXXXXXXXXX)
+      let phone = phoneNumber.replace(/\D/g, "");
+
+      if (phone.length === 10) {
+        phone = `91${phone}`;
+      } else if (phone.length === 12 && phone.startsWith("91")) {
+        // already has 91
+      } else if (phone.startsWith("0")) {
+        phone = `91${phone.substring(1)}`;
+      }
+
+      const formattedPhone = `+${phone}`;
+
+      const response = await apiClient.post<LoginResponse>(
+        "/delivery-partners/auth/verify-otp",
+        { phone: formattedPhone, otp },
+      );
+
+      // Store token if available
+      if (response.data?.token) {
+        await AsyncStorage.setItem(TOKEN_KEY, response.data.token);
+      }
+
+      return response;
+    } catch (error: any) {
+      console.error("Verify delivery partner OTP error:", error);
+      throw error;
+    }
   },
 };
 
