@@ -85,16 +85,14 @@ export default function AccountRejectedScreen() {
           paddingTop: insets.top + 20,
           paddingBottom: insets.bottom + 20,
         }}
-        showsVerticalScrollIndicator={false}
-      >
+        showsVerticalScrollIndicator={false}>
         <View className="flex-1 px-5">
           {/* Header with Logout */}
           <View className="flex-row items-center justify-end mb-8">
             <TouchableOpacity
               onPress={handleLogout}
-              className="flex-row items-center px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20"
-              activeOpacity={0.7}
-            >
+              className="flex-row items-center px-4 py-2 bg-white rounded-full border border-white/20"
+              activeOpacity={0.7}>
               <Ionicons name="log-out-outline" size={18} color="#EF4444" />
               <Text className="text-red-400 font-semibold ml-2 text-sm">
                 Logout
@@ -119,7 +117,7 @@ export default function AccountRejectedScreen() {
           </View>
 
           {/* Reason Card */}
-          <View className="bg-white/10 backdrop-blur-md rounded-[24px] p-6 mb-4 border border-white/10">
+          <View className="bg-white rounded-[24px] p-6 mb-4 border border-gray-200">
             <View className="flex-row items-start mb-4">
               <View className="w-12 h-12 bg-amber-500/20 rounded-2xl items-center justify-center border border-amber-500/30">
                 <Ionicons name="information-circle" size={26} color="#F59E0B" />
@@ -154,7 +152,7 @@ export default function AccountRejectedScreen() {
           </View>
 
           {/* What You Can Do Card */}
-          <View className="bg-white/10 backdrop-blur-md rounded-[24px] p-6 mb-4 border border-white/10">
+          <View className="bg-white rounded-[24px] p-6 mb-4 border border-gray-200">
             <Text className="text-lg font-bold text-white mb-6 uppercase tracking-wider opacity-90">
               What You Can Do
             </Text>
@@ -162,9 +160,8 @@ export default function AccountRejectedScreen() {
             <View className="space-y-4">
               <TouchableOpacity
                 onPress={handleContactSupport}
-                className="flex-row items-center p-4 bg-white/5 rounded-2xl border border-white/10"
-                activeOpacity={0.7}
-              >
+                className="flex-row items-center p-4 bg-gray-50 rounded-2xl border border-gray-200"
+                activeOpacity={0.7}>
                 <View className="w-11 h-11 bg-green-500/20 rounded-xl items-center justify-center border border-green-500/30">
                   <Ionicons
                     name="chatbubble-ellipses"
@@ -189,9 +186,8 @@ export default function AccountRejectedScreen() {
 
               <TouchableOpacity
                 onPress={handleTryAgain}
-                className="flex-row items-center p-4 bg-white/5 rounded-2xl border border-white/10"
-                activeOpacity={0.7}
-              >
+                className="flex-row items-center p-4 bg-gray-50 rounded-2xl border border-gray-200"
+                activeOpacity={0.7}>
                 <View className="w-11 h-11 bg-indigo-500/20 rounded-xl items-center justify-center border border-indigo-500/30">
                   <Ionicons name="reload" size={22} color="#818CF8" />
                 </View>

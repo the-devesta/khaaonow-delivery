@@ -154,8 +154,7 @@ export default function ProfileScreen() {
             tintColor="#F59E0B"
             colors={["#F59E0B"]}
           />
-        }
-      >
+        }>
         {/* Background Gradient */}
         <View className="absolute top-0 left-0 right-0 h-96 opacity-60">
           <LinearGradient
@@ -174,9 +173,9 @@ export default function ProfileScreen() {
           </Text>
 
           {/* Profile Card */}
-          <View className="bg-white/70 backdrop-blur-md rounded-[32px] p-1 border border-white/50 shadow-sm mb-6">
-            <View className="bg-white/40 rounded-[28px] p-6 flex-row items-center">
-              <View className="w-20 h-20 bg-[#F59E0B] rounded-[24px] items-center justify-center mr-5 shadow-lg shadow-amber-200 border-4 border-white/50">
+          <View className="bg-white rounded-[32px] p-1 shadow-sm mb-6">
+            <View className="bg-gray-50 rounded-[28px] p-6 flex-row items-center">
+              <View className="w-20 h-20 bg-[#F59E0B] rounded-[24px] items-center justify-center mr-5 shadow-lg shadow-amber-200 border-4 border-white">
                 <Text className="text-white text-2xl font-bold">
                   {getInitials(profile?.name)}
                 </Text>
@@ -205,7 +204,7 @@ export default function ProfileScreen() {
           </View>
 
           {/* Stats Card */}
-          <View className="bg-white/70 backdrop-blur-md rounded-[32px] p-6 border border-white/50 shadow-sm mb-8">
+          <View className="bg-white rounded-[32px] p-6 shadow-sm mb-8">
             <View className="flex-row justify-between">
               <View className="items-center flex-1">
                 <View className="w-10 h-10 bg-[#FFFBEB] rounded-xl items-center justify-center mb-2">
@@ -237,8 +236,7 @@ export default function ProfileScreen() {
                 </View>
                 <Text
                   className="text-xl font-extrabold text-[#1A1A1A] text-center"
-                  numberOfLines={1}
-                >
+                  numberOfLines={1}>
                   {profile?.vehicleType || "N/A"}
                 </Text>
                 <Text className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wide">
@@ -258,13 +256,11 @@ export default function ProfileScreen() {
                 key={item.id}
                 activeOpacity={0.7}
                 onPress={() => item.route && router.push(item.route as any)}
-                className="flex-row items-center justify-between bg-white/60 backdrop-blur-sm rounded-[24px] p-4 border border-white/40 shadow-sm"
-              >
+                className="flex-row items-center justify-between bg-white rounded-[24px] p-4 shadow-sm">
                 <View className="flex-row items-center flex-1">
                   <View
                     className="w-10 h-10 rounded-2xl items-center justify-center mr-4"
-                    style={{ backgroundColor: item.bg }}
-                  >
+                    style={{ backgroundColor: item.bg }}>
                     <Ionicons
                       name={item.icon as any}
                       size={20}
@@ -284,8 +280,7 @@ export default function ProfileScreen() {
           <TouchableOpacity
             onPress={handleLogout}
             activeOpacity={0.8}
-            className="bg-white/50 backdrop-blur-sm rounded-[24px] py-4 items-center border border-red-100"
-          >
+            className="bg-white rounded-[24px] py-4 items-center border border-red-100">
             <View className="flex-row items-center">
               <Ionicons name="log-out-outline" size={20} color="#EF4444" />
               <Text className="text-[#EF4444] text-base font-bold ml-2">

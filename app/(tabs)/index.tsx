@@ -251,15 +251,13 @@ export default function HomeScreen() {
         contentContainerStyle={{
           paddingBottom: 110,
           paddingTop: insets.top + 10,
-        }}
-      >
+        }}>
         <Animated.View
           style={{
             opacity: fadeAnim,
             transform: [{ translateY: slideAnim }],
             paddingHorizontal: 24,
-          }}
-        >
+          }}>
           {/* Header */}
           <View className="flex-row items-center justify-between mb-8">
             <View className="flex-1">
@@ -271,10 +269,9 @@ export default function HomeScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              className="w-12 h-12 bg-white/60 rounded-full items-center justify-center shadow-sm backdrop-blur-sm border border-white/20"
+              className="w-12 h-12 bg-white rounded-full items-center justify-center shadow-sm"
               activeOpacity={0.7}
-              onPress={() => router.push("/(tabs)/profile")}
-            >
+              onPress={() => router.push("/(tabs)/profile")}>
               <Ionicons
                 name="notifications-outline"
                 size={24}
@@ -285,17 +282,13 @@ export default function HomeScreen() {
           </View>
 
           {/* Status Toggle Card */}
-          <View
-            className="mb-6 bg-white/70 backdrop-blur-md rounded-[32px] p-1 border border-white/50"
-            style={glassStyle}
-          >
-            <View className="bg-white/40 rounded-[28px] p-5 flex-row items-center justify-between">
+          <View className="mb-6 bg-white rounded-[32px] p-1" style={glassStyle}>
+            <View className="bg-gray-50 rounded-[28px] p-5 flex-row items-center justify-between">
               <View className="flex-row items-center flex-1 pr-4">
                 <View
                   className={`w-14 h-14 rounded-full items-center justify-center mr-4 shadow-sm ${
                     isOnline ? "bg-[#10B981]" : "bg-[#EF4444]"
-                  }`}
-                >
+                  }`}>
                   {toggleLoading ? (
                     <ActivityIndicator color="white" size="small" />
                   ) : (
@@ -331,17 +324,16 @@ export default function HomeScreen() {
 
           {/* Stats Overview */}
           <Text className="text-lg font-bold text-[#1A1A1A] mb-4 ml-1">
-            Today's Overview
+            Today&apos;s Overview
           </Text>
 
           <View className="flex-row gap-4 mb-8">
             {/* Earnings Card */}
             <TouchableOpacity
-              className="flex-1 bg-white/70 backdrop-blur-sm rounded-[32px] p-5 border border-white/50 relative overflow-hidden"
+              className="flex-1 bg-white rounded-[32px] p-5 border border-gray-100 relative overflow-hidden"
               style={glassStyle}
               onPress={() => router.push("/(tabs)/earnings")}
-              activeOpacity={0.8}
-            >
+              activeOpacity={0.8}>
               <View className="absolute right-0 top-0 w-24 h-24 bg-[#10B981]/10 rounded-full -mr-8 -mt-8" />
 
               <View className="w-12 h-12 bg-[#D1FAE5] rounded-2xl items-center justify-center mb-4">
@@ -357,11 +349,10 @@ export default function HomeScreen() {
 
             {/* Orders Card */}
             <TouchableOpacity
-              className="flex-1 bg-white/70 backdrop-blur-sm rounded-[32px] p-5 border border-white/50 relative overflow-hidden"
+              className="flex-1 bg-white rounded-[32px] p-5 border border-gray-100 relative overflow-hidden"
               style={glassStyle}
               onPress={() => router.push("/(tabs)/orders")}
-              activeOpacity={0.8}
-            >
+              activeOpacity={0.8}>
               <View className="absolute right-0 top-0 w-24 h-24 bg-[#3B82F6]/10 rounded-full -mr-8 -mt-8" />
 
               <View className="w-12 h-12 bg-[#DBEAFE] rounded-2xl items-center justify-center mb-4">
@@ -389,17 +380,15 @@ export default function HomeScreen() {
             <TouchableOpacity
               onPress={handleViewOrderDetails}
               activeOpacity={0.9}
-              className="bg-white/70 backdrop-blur-md rounded-[32px] p-1 border border-white/50 mb-8"
-              style={glassStyle}
-            >
-              <View className="bg-white/40 rounded-[28px] overflow-hidden">
+              className="bg-white rounded-[32px] p-1 mb-8"
+              style={glassStyle}>
+              <View className="bg-gray-50 rounded-[28px] overflow-hidden">
                 {/* Status Bar */}
                 <LinearGradient
                   colors={["#DBEAFE", "#EFF6FF"]}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 0 }}
-                  className="px-5 py-4 flex-row items-center justify-between border-b border-white/50"
-                >
+                  className="px-5 py-4 flex-row items-center justify-between border-b border-gray-200">
                   <View className="flex-row items-center">
                     <View className="w-2 h-2 bg-[#3B82F6] rounded-full mr-2 animate-pulse" />
                     <Text className="text-sm font-bold text-[#3B82F6] tracking-wide">
@@ -434,8 +423,7 @@ export default function HomeScreen() {
                       </Text>
                       <Text
                         className="text-lg font-bold text-[#1A1A1A] leading-tight"
-                        numberOfLines={1}
-                      >
+                        numberOfLines={1}>
                         {currentActiveOrder.restaurantName}
                       </Text>
                     </View>
@@ -455,14 +443,12 @@ export default function HomeScreen() {
                       </Text>
                       <Text
                         className="text-lg font-bold text-[#1A1A1A] leading-tight"
-                        numberOfLines={1}
-                      >
+                        numberOfLines={1}>
                         {currentActiveOrder.customerName}
                       </Text>
                       <Text
                         className="text-sm text-gray-500 mt-0.5"
-                        numberOfLines={1}
-                      >
+                        numberOfLines={1}>
                         {currentActiveOrder.customerAddress}
                       </Text>
                     </View>
@@ -491,10 +477,9 @@ export default function HomeScreen() {
             </TouchableOpacity>
           ) : (
             <View
-              className="bg-white/70 backdrop-blur-sm rounded-[32px] p-8 border border-white/50 items-center justify-center mb-8"
-              style={glassStyle}
-            >
-              <View className="w-20 h-20 bg-white/60 rounded-full items-center justify-center mb-4 shadow-sm">
+              className="bg-white rounded-[32px] p-8 items-center justify-center mb-8"
+              style={glassStyle}>
+              <View className="w-20 h-20 bg-gray-100 rounded-full items-center justify-center mb-4 shadow-sm">
                 <Ionicons name="cube-outline" size={36} color="#9CA3AF" />
               </View>
               <Text className="text-lg font-bold text-[#1A1A1A] mb-2">
@@ -509,8 +494,7 @@ export default function HomeScreen() {
                 <TouchableOpacity
                   onPress={handleToggleOnline}
                   className="bg-[#F59E0B] px-8 py-3.5 rounded-full shadow-lg shadow-amber-200"
-                  activeOpacity={0.8}
-                >
+                  activeOpacity={0.8}>
                   <Text className="text-white font-bold text-base">
                     Go Online Now
                   </Text>
@@ -526,10 +510,9 @@ export default function HomeScreen() {
           <View className="flex-row gap-4 mb-8">
             <TouchableOpacity
               activeOpacity={0.7}
-              className="flex-1 bg-white/70 backdrop-blur-sm rounded-[28px] p-5 border border-white/50 items-center"
+              className="flex-1 bg-white rounded-[28px] p-5 items-center"
               style={glassStyle}
-              onPress={() => router.push("/(tabs)/orders")}
-            >
+              onPress={() => router.push("/(tabs)/orders")}>
               <View className="w-14 h-14 bg-[#FFF7ED] rounded-2xl items-center justify-center mb-3 shadow-sm">
                 <Ionicons name="time" size={26} color="#F59E0B" />
               </View>
@@ -539,10 +522,9 @@ export default function HomeScreen() {
 
             <TouchableOpacity
               activeOpacity={0.7}
-              className="flex-1 bg-white/70 backdrop-blur-sm rounded-[28px] p-5 border border-white/50 items-center"
+              className="flex-1 bg-white rounded-[28px] p-5 items-center"
               style={glassStyle}
-              onPress={() => router.push("/(tabs)/earnings")}
-            >
+              onPress={() => router.push("/(tabs)/earnings")}>
               <View className="w-14 h-14 bg-[#EFF6FF] rounded-2xl items-center justify-center mb-3 shadow-sm">
                 <Ionicons name="bar-chart" size={26} color="#3B82F6" />
               </View>

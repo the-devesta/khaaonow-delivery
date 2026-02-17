@@ -48,8 +48,7 @@ export default function LoginScreen() {
       <StatusBar barStyle="dark-content" backgroundColor="#F3E0D9" />
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
+        className="flex-1">
         <ScrollView
           contentContainerStyle={{
             paddingBottom: insets.bottom || 20,
@@ -57,8 +56,7 @@ export default function LoginScreen() {
             flexGrow: 1,
           }}
           keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           <Animated.View
             style={{
               opacity: fadeAnim,
@@ -66,8 +64,7 @@ export default function LoginScreen() {
               width: "100%",
               flex: 1,
               justifyContent: "center",
-            }}
-          >
+            }}>
             {/* Header Section */}
             <View className="items-center mb-8 px-6">
               <Text className="text-3xl font-extrabold text-[#1A1A1A] mb-2 text-center">
@@ -88,15 +85,14 @@ export default function LoginScreen() {
 
             {/* Login Card */}
             <View
-              className="bg-white/50 backdrop-blur-sm mx-6 rounded-[32px] p-6 shadow-inner shadow-white"
+              className="bg-white mx-6 rounded-[32px] p-6"
               style={{
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 10 },
                 shadowOpacity: 0.05,
                 shadowRadius: 20,
                 elevation: 5,
-              }}
-            >
+              }}>
               <View className="items-center mb-6">
                 <Text className="text-xl font-bold text-[#1A1A1A]">Login</Text>
                 <View className="h-1 w-8 bg-[#F59E0B] rounded-full mt-2" />
@@ -120,8 +116,7 @@ export default function LoginScreen() {
                   } catch (err: any) {
                     Alert.alert("Error", err.message || "Failed to send OTP.");
                   }
-                }}
-              >
+                }}>
                 {({
                   handleChange,
                   handleBlur,
@@ -144,8 +139,7 @@ export default function LoginScreen() {
                           shadowOpacity: 0.03,
                           shadowRadius: 4,
                           elevation: 1,
-                        }}
-                      >
+                        }}>
                         <View className="px-4 border-r border-gray-200 h-full justify-center bg-white">
                           <Text className="text-lg font-bold text-[#1A1A1A]">
                             +91

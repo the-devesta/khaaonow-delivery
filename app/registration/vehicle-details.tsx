@@ -83,8 +83,7 @@ function DocumentUploadCard({
       onPress={showOptions}
       activeOpacity={0.7}
       className="bg-white/5 rounded-2xl border-2 border-dashed border-white/20 overflow-hidden mb-4 mt-2"
-      style={{ minHeight: 140, justifyContent: "center" }}
-    >
+      style={{ minHeight: 140, justifyContent: "center" }}>
       {imageUri ? (
         <View className="relative w-full h-40">
           <Image
@@ -97,14 +96,13 @@ function DocumentUploadCard({
           </View>
           <TouchableOpacity
             onPress={showOptions}
-            className="absolute bottom-2 right-2 bg-white/20 backdrop-blur-md rounded-full p-2 border border-white/30"
-          >
+            className="absolute bottom-2 right-2 bg-white rounded-full p-2 border border-white/30">
             <Ionicons name="camera" size={18} color="#FFFFFF" />
           </TouchableOpacity>
         </View>
       ) : (
         <View className="py-6 px-4 items-center">
-          <View className="w-12 h-12 bg-white/10 rounded-full items-center justify-center mb-3 border border-white/10">
+          <View className="w-12 h-12 bg-gray-100 rounded-full items-center justify-center mb-3 border border-gray-200">
             <Ionicons name="cloud-upload-outline" size={24} color="#F59E0B" />
           </View>
           <Text className="text-sm font-bold text-white mb-0.5">{title}</Text>
@@ -254,23 +252,20 @@ export default function VehicleDetailsScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
+        className="flex-1">
         <ScrollView
           contentContainerStyle={{
             flexGrow: 1,
             paddingTop: insets.top + 10,
             paddingBottom: insets.bottom + 20,
           }}
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View className="px-6 mb-6">
             <TouchableOpacity
               onPress={() => router.back()}
-              className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center border border-white/10 mb-6"
-              activeOpacity={0.8}
-            >
+              className="w-10 h-10 bg-white rounded-full items-center justify-center border border-white/10 mb-6"
+              activeOpacity={0.8}>
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
 
@@ -292,14 +287,13 @@ export default function VehicleDetailsScreen() {
 
             {/* Glassmorphism Form Card */}
             <View
-              className="bg-white/20 backdrop-blur-md rounded-[32px] p-6 border-2 border-white/20 shadow-lg shadow-black/20"
+              className="bg-white rounded-[32px] p-6 border-2 border-white/20 shadow-lg shadow-black/20"
               style={{
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 10 },
                 shadowOpacity: 0.3,
                 shadowRadius: 20,
-              }}
-            >
+              }}>
               {/* Vehicle Type Selection */}
               <View className="mb-6">
                 <Text className="text-xs font-bold text-white/70 mb-3 ml-1 uppercase tracking-wider">
@@ -331,8 +325,7 @@ export default function VehicleDetailsScreen() {
                             ? "rgba(255,255,255,0.9)"
                             : "rgba(255,255,255,0.05)",
                         opacity: pressed ? 0.7 : 1,
-                      })}
-                    >
+                      })}>
                       <View className="mb-2">
                         <Ionicons
                           name={vehicle.icon as any}
@@ -349,8 +342,7 @@ export default function VehicleDetailsScreen() {
                           selectedVehicle === vehicle.id
                             ? "text-black"
                             : "text-white/60"
-                        }`}
-                      >
+                        }`}>
                         {vehicle.name}
                       </Text>
                     </Pressable>

@@ -19,8 +19,7 @@ export default function SupportScreen() {
     <View className="flex-1 bg-[#F3E0D9]">
       <View
         style={{ paddingTop: insets.top }}
-        className="px-6 pb-4 bg-white/50 border-b border-gray-200/50"
-      >
+        className="px-6 pb-4 bg-white border-b border-gray-200">
         <View className="flex-row items-center justify-between">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
             <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
@@ -43,8 +42,7 @@ export default function SupportScreen() {
 
           <TouchableOpacity
             onPress={handleCall}
-            className="flex-row items-center bg-green-50 p-4 rounded-xl mb-3 border border-green-100"
-          >
+            className="flex-row items-center bg-green-50 p-4 rounded-xl mb-3 border border-green-100">
             <View className="w-10 h-10 bg-green-100 rounded-full items-center justify-center mr-4">
               <Ionicons name="call" size={20} color="#10B981" />
             </View>
@@ -56,8 +54,7 @@ export default function SupportScreen() {
 
           <TouchableOpacity
             onPress={handleEmail}
-            className="flex-row items-center bg-blue-50 p-4 rounded-xl border border-blue-100"
-          >
+            className="flex-row items-center bg-blue-50 p-4 rounded-xl border border-blue-100">
             <View className="w-10 h-10 bg-blue-100 rounded-full items-center justify-center mr-4">
               <Ionicons name="mail" size={20} color="#3B82F6" />
             </View>

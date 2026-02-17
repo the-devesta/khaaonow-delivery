@@ -46,8 +46,7 @@ export default function NotificationsScreen() {
     <View className="flex-1 bg-[#F3E0D9]">
       <View
         style={{ paddingTop: insets.top }}
-        className="px-6 pb-4 bg-white/50 border-b border-gray-200/50"
-      >
+        className="px-6 pb-4 bg-white border-b border-gray-200">
         <View className="flex-row items-center justify-between">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
             <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
@@ -72,8 +71,7 @@ export default function NotificationsScreen() {
               onRefresh={handleRefresh}
               tintColor="#F59E0B"
             />
-          }
-        >
+          }>
           {notifications.length === 0 ? (
             <View className="items-center justify-center py-20">
               <Ionicons
@@ -89,8 +87,7 @@ export default function NotificationsScreen() {
             notifications.map((notification) => (
               <View
                 key={notification._id}
-                className="bg-white/80 backdrop-blur-md rounded-3xl p-4 mb-4 shadow-sm border border-gray-100"
-              >
+                className="bg-white rounded-3xl p-4 mb-4 shadow-sm border border-gray-100">
                 <View className="flex-row items-start justify-between mb-2">
                   <Text className="text-base font-bold text-gray-900 flex-1 mr-2">
                     {notification.title}

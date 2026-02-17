@@ -119,23 +119,20 @@ export default function EditProfileScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
+        className="flex-1">
         <ScrollView
           contentContainerStyle={{
             flexGrow: 1,
             paddingTop: insets.top + 10,
             paddingBottom: insets.bottom + 20,
           }}
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View className="px-6 mb-6">
             <TouchableOpacity
               onPress={() => router.back()}
-              className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center border border-white/30 mb-6"
-              activeOpacity={0.8}
-            >
+              className="w-10 h-10 bg-gray-800 rounded-full items-center justify-center border border-gray-700 mb-6"
+              activeOpacity={0.8}>
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
           </View>
@@ -153,20 +150,18 @@ export default function EditProfileScreen() {
 
             {/* Glassmorphism Form Card */}
             <View
-              className="bg-white/30 backdrop-blur-sm rounded-[32px] p-6 border-2 border-white/20 shadow-lg shadow-black/20"
+              className="bg-gray-800/90 rounded-[32px] p-6 border border-gray-700 shadow-lg shadow-black/20"
               style={{
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 10 },
                 shadowOpacity: 0.3,
                 shadowRadius: 20,
-              }}
-            >
+              }}>
               <Formik
                 initialValues={initialValues}
                 validationSchema={EditProfileSchema}
                 onSubmit={handleUpdate}
-                enableReinitialize
-              >
+                enableReinitialize>
                 {({
                   handleChange,
                   handleBlur,
@@ -181,7 +176,7 @@ export default function EditProfileScreen() {
                       <Text className="text-xs font-bold text-white/70 mb-2 ml-1 uppercase tracking-wider">
                         Full Name
                       </Text>
-                      <View className="flex-row items-center bg-white/10 rounded-2xl border border-white/10 h-14 px-4 overflow-hidden">
+                      <View className="flex-row items-center bg-gray-700 rounded-2xl h-14 px-4 overflow-hidden">
                         <Ionicons
                           name="person-outline"
                           size={20}
@@ -209,7 +204,7 @@ export default function EditProfileScreen() {
                       <Text className="text-xs font-bold text-white/70 mb-2 ml-1 uppercase tracking-wider">
                         Email Address
                       </Text>
-                      <View className="flex-row items-center bg-white/10 rounded-2xl border border-white/10 h-14 px-4 overflow-hidden">
+                      <View className="flex-row items-center bg-gray-700 rounded-2xl h-14 px-4 overflow-hidden">
                         <Ionicons
                           name="mail-outline"
                           size={20}

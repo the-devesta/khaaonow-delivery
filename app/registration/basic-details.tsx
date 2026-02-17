@@ -78,23 +78,20 @@ export default function BasicDetailsScreen() {
 
       <KeyboardAvoidingView
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
+        className="flex-1">
         <ScrollView
           contentContainerStyle={{
             flexGrow: 1,
             paddingTop: insets.top + 10,
             paddingBottom: insets.bottom + 20,
           }}
-          showsVerticalScrollIndicator={false}
-        >
+          showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View className="px-6 mb-6">
             <TouchableOpacity
               onPress={() => router.back()}
-              className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center border border-white/30 mb-6"
-              activeOpacity={0.8}
-            >
+              className="w-10 h-10 bg-white rounded-full items-center justify-center border border-white/30 mb-6"
+              activeOpacity={0.8}>
               <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
             </TouchableOpacity>
 
@@ -116,19 +113,17 @@ export default function BasicDetailsScreen() {
 
             {/* Glassmorphism Form Card */}
             <View
-              className="bg-white/30 backdrop-blur-sm rounded-[32px] p-6 border-2 border-white/20 shadow-lg shadow-black/20"
+              className="bg-white rounded-[32px] p-6 border-2 border-white/20 shadow-lg shadow-black/20"
               style={{
                 shadowColor: "#000",
                 shadowOffset: { width: 0, height: 10 },
                 shadowOpacity: 0.3,
                 shadowRadius: 20,
-              }}
-            >
+              }}>
               <Formik
                 initialValues={{ name: "", email: "" }}
                 validationSchema={BasicDetailsSchema}
-                onSubmit={handleNext}
-              >
+                onSubmit={handleNext}>
                 {({
                   handleChange,
                   handleBlur,
@@ -140,22 +135,22 @@ export default function BasicDetailsScreen() {
                   <View>
                     {/* Name Input */}
                     <View className="mb-5">
-                      <Text className="text-xs font-bold text-white/70 mb-2 ml-1 uppercase tracking-wider">
+                      <Text className="text-xs font-bold text-gray-600 mb-2 ml-1 uppercase tracking-wider">
                         Full Name
                       </Text>
-                      <View className="flex-row items-center bg-white/10 rounded-2xl border border-white/10 h-14 px-4 overflow-hidden">
+                      <View className="flex-row items-center bg-gray-50 rounded-2xl border border-gray-200 h-14 px-4 overflow-hidden">
                         <Ionicons
                           name="person-outline"
                           size={20}
-                          color="rgba(255,255,255,0.7)"
+                          color="#6B7280"
                         />
                         <TextInput
                           placeholder="John Doe"
-                          placeholderTextColor="rgba(255,255,255,0.4)"
+                          placeholderTextColor="#9CA3AF"
                           value={values.name}
                           onChangeText={handleChange("name")}
                           onBlur={handleBlur("name")}
-                          className="flex-1 ml-3 text-lg text-white font-semibold h-full"
+                          className="flex-1 ml-3 text-lg text-gray-900 font-semibold h-full"
                           selectionColor="#F59E0B"
                         />
                       </View>
@@ -168,24 +163,24 @@ export default function BasicDetailsScreen() {
 
                     {/* Email Input */}
                     <View className="mb-6">
-                      <Text className="text-xs font-bold text-white/70 mb-2 ml-1 uppercase tracking-wider">
+                      <Text className="text-xs font-bold text-gray-600 mb-2 ml-1 uppercase tracking-wider">
                         Email Address
                       </Text>
-                      <View className="flex-row items-center bg-white/10 rounded-2xl border border-white/10 h-14 px-4 overflow-hidden">
+                      <View className="flex-row items-center bg-gray-50 rounded-2xl border border-gray-200 h-14 px-4 overflow-hidden">
                         <Ionicons
                           name="mail-outline"
                           size={20}
-                          color="rgba(255,255,255,0.7)"
+                          color="#6B7280"
                         />
                         <TextInput
                           placeholder="john@example.com"
-                          placeholderTextColor="rgba(255,255,255,0.4)"
+                          placeholderTextColor="#9CA3AF"
                           keyboardType="email-address"
                           autoCapitalize="none"
                           value={values.email}
                           onChangeText={handleChange("email")}
                           onBlur={handleBlur("email")}
-                          className="flex-1 ml-3 text-lg text-white font-semibold h-full"
+                          className="flex-1 ml-3 text-lg text-gray-900 font-semibold h-full"
                           selectionColor="#F59E0B"
                         />
                       </View>

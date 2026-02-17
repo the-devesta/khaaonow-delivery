@@ -60,8 +60,7 @@ function StatusStep({
       <View className="items-center mr-4">
         <View
           className="w-12 h-12 rounded-2xl items-center justify-center border border-white/10"
-          style={{ backgroundColor: getBgColor() }}
-        >
+          style={{ backgroundColor: getBgColor() }}>
           <Ionicons name={icon as any} size={22} color={getIconColor()} />
         </View>
         {!last && (
@@ -231,16 +230,14 @@ export default function AccountPendingScreen() {
             colors={["#F59E0B"]}
             tintColor="#F59E0B"
           />
-        }
-      >
+        }>
         <View className="flex-1 px-5">
           {/* Header with Logout */}
           <View className="flex-row items-center justify-end mb-8">
             <TouchableOpacity
               onPress={handleLogout}
-              className="flex-row items-center px-4 py-2 bg-white/10 backdrop-blur-md rounded-full border border-white/20"
-              activeOpacity={0.7}
-            >
+              className="flex-row items-center px-4 py-2 bg-white rounded-full border border-white/20"
+              activeOpacity={0.7}>
               <Ionicons name="log-out-outline" size={18} color="#EF4444" />
               <Text className="text-red-400 font-semibold ml-2 text-sm">
                 Logout
@@ -266,8 +263,7 @@ export default function AccountPendingScreen() {
                     shadowRadius: 20,
                   },
                   pulseStyle,
-                ]}
-              >
+                ]}>
                 <Ionicons name="hourglass-outline" size={48} color="white" />
               </Animated.View>
             </View>
@@ -280,7 +276,7 @@ export default function AccountPendingScreen() {
           </View>
 
           {/* Estimated Time Card */}
-          <View className="bg-white/10 backdrop-blur-md rounded-[24px] p-5 mb-4 border border-white/10 flex-row items-center">
+          <View className="bg-white rounded-[24px] p-5 mb-4 border border-gray-200 flex-row items-center">
             <View className="w-14 h-14 bg-indigo-500/20 rounded-2xl items-center justify-center border border-indigo-500/30">
               <Ionicons name="time-outline" size={28} color="#818CF8" />
             </View>
@@ -295,7 +291,7 @@ export default function AccountPendingScreen() {
           </View>
 
           {/* Status Steps Card */}
-          <View className="bg-white/10 backdrop-blur-md rounded-[24px] p-6 mb-4 border border-white/10">
+          <View className="bg-white rounded-[24px] p-6 mb-4 border border-gray-200">
             <Text className="text-lg font-bold text-white mb-6 uppercase tracking-wider opacity-90">
               Verification Progress
             </Text>
@@ -333,8 +329,7 @@ export default function AccountPendingScreen() {
               shadowRadius: 8,
               elevation: 8,
             }}
-            activeOpacity={0.8}
-          >
+            activeOpacity={0.8}>
             {checking ? (
               <ActivityIndicator color="white" size="small" />
             ) : (
@@ -351,8 +346,7 @@ export default function AccountPendingScreen() {
           <TouchableOpacity
             onPress={handleContactSupport}
             className="bg-white/5 backdrop-blur-sm rounded-2xl p-4 mb-8 border border-white/5"
-            activeOpacity={0.7}
-          >
+            activeOpacity={0.7}>
             <View className="flex-row items-center justify-between">
               <View className="flex-row items-center">
                 <View className="w-11 h-11 bg-white/10 rounded-xl items-center justify-center">

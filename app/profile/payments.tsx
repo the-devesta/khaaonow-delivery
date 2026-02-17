@@ -124,8 +124,7 @@ export default function PaymentsScreen() {
     <View className="flex-1 bg-[#F3E0D9]">
       <View
         style={{ paddingTop: insets.top }}
-        className="px-6 pb-4 bg-white/50 border-b border-gray-200/50"
-      >
+        className="px-6 pb-4 bg-white border-b border-gray-200">
         <View className="flex-row items-center justify-between">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
             <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
@@ -137,8 +136,7 @@ export default function PaymentsScreen() {
           {!loading && !isEditing && (
             <TouchableOpacity
               onPress={() => setIsEditing(true)}
-              className="p-2"
-            >
+              className="p-2">
               <Ionicons name="pencil" size={24} color="#1A1A1A" />
             </TouchableOpacity>
           )}
@@ -154,11 +152,9 @@ export default function PaymentsScreen() {
       ) : (
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : "height"}
-          className="flex-1"
-        >
+          className="flex-1">
           <ScrollView
-            contentContainerStyle={{ padding: 24, paddingBottom: 100 }}
-          >
+            contentContainerStyle={{ padding: 24, paddingBottom: 100 }}>
             {/* Bank Details Card */}
             <View className="bg-white rounded-3xl p-6 shadow-sm mb-6">
               <View className="flex-row items-center justify-between mb-6">
@@ -278,15 +274,13 @@ export default function PaymentsScreen() {
                 <TouchableOpacity
                   onPress={() => setIsEditing(false)}
                   className="flex-1 bg-gray-200 py-4 rounded-xl items-center"
-                  disabled={saving}
-                >
+                  disabled={saving}>
                   <Text className="font-bold text-gray-700">Cancel</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
                   onPress={handleSave}
                   className="flex-1 bg-[#F59E0B] py-4 rounded-xl items-center"
-                  disabled={saving}
-                >
+                  disabled={saving}>
                   {saving ? (
                     <ActivityIndicator color="white" />
                   ) : (

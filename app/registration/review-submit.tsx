@@ -148,15 +148,13 @@ export default function ReviewAndSubmitScreen() {
           paddingTop: insets.top + 10,
           paddingBottom: insets.bottom + 20,
         }}
-        showsVerticalScrollIndicator={false}
-      >
+        showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="px-6 mb-6">
           <TouchableOpacity
             onPress={() => router.back()}
-            className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center border border-white/10 mb-6"
-            activeOpacity={0.8}
-          >
+            className="w-10 h-10 bg-white rounded-full items-center justify-center border border-white/10 mb-6"
+            activeOpacity={0.8}>
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
@@ -185,8 +183,7 @@ export default function ReviewAndSubmitScreen() {
               shadowOffset: { width: 0, height: 10 },
               shadowOpacity: 0.3,
               shadowRadius: 20,
-            }}
-          >
+            }}>
             <View className="flex-row items-center mb-4">
               <View className="w-12 h-12 bg-yellow-500/20 rounded-xl items-center justify-center border border-yellow-500/30">
                 <Ionicons name="person" size={24} color="#F59E0B" />
@@ -204,8 +201,7 @@ export default function ReviewAndSubmitScreen() {
               </View>
               <TouchableOpacity
                 className="bg-white/10 p-2 rounded-full"
-                activeOpacity={0.7}
-              >
+                activeOpacity={0.7}>
                 <Ionicons name="pencil" size={16} color="white" />
               </TouchableOpacity>
             </View>
@@ -219,8 +215,7 @@ export default function ReviewAndSubmitScreen() {
               shadowOffset: { width: 0, height: 10 },
               shadowOpacity: 0.3,
               shadowRadius: 20,
-            }}
-          >
+            }}>
             <View className="flex-row items-center justify-between mb-2">
               <Text className="text-lg font-bold text-white">
                 KYC Documents
@@ -255,8 +250,7 @@ export default function ReviewAndSubmitScreen() {
               shadowOffset: { width: 0, height: 10 },
               shadowOpacity: 0.3,
               shadowRadius: 20,
-            }}
-          >
+            }}>
             <View className="flex-row items-center justify-between mb-2">
               <Text className="text-lg font-bold text-white">Vehicle Info</Text>
               <TouchableOpacity activeOpacity={0.7}>
@@ -293,8 +287,7 @@ export default function ReviewAndSubmitScreen() {
               shadowOffset: { width: 0, height: 10 },
               shadowOpacity: 0.3,
               shadowRadius: 20,
-            }}
-          >
+            }}>
             <View className="flex-row items-center justify-between mb-2">
               <Text className="text-lg font-bold text-white">Bank Details</Text>
               <TouchableOpacity activeOpacity={0.7}>
@@ -337,15 +330,13 @@ export default function ReviewAndSubmitScreen() {
               agreed
                 ? "bg-yellow-500/10 border-yellow-500/50"
                 : "bg-white/5 border-white/10"
-            } mb-6`}
-          >
+            } mb-6`}>
             <View
               className={`w-6 h-6 rounded-lg border-2 items-center justify-center mr-3 mt-0.5 ${
                 agreed
                   ? "bg-[#F59E0B] border-[#F59E0B]"
                   : "border-white/30 bg-transparent"
-              }`}
-            >
+              }`}>
               {agreed && <Ionicons name="checkmark" size={16} color="white" />}
             </View>
             <Text className="flex-1 text-[14px] text-white/70 leading-5">

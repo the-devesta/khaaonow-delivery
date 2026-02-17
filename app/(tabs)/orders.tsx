@@ -59,8 +59,7 @@ export default function OrdersScreen() {
             colors={["#F59E0B"]}
           />
         }
-        contentContainerStyle={{ paddingBottom: 110 }}
-      >
+        contentContainerStyle={{ paddingBottom: 110 }}>
         {/* Header */}
         <View className="px-6 pt-16 pb-5">
           <View className="flex-row items-center justify-between mb-2">
@@ -73,9 +72,8 @@ export default function OrdersScreen() {
               </Text>
             </View>
             <TouchableOpacity
-              className="w-12 h-12 bg-white/60 rounded-full items-center justify-center shadow-sm backdrop-blur-sm border border-white/20"
-              activeOpacity={0.7}
-            >
+              className="w-12 h-12 bg-white rounded-full items-center justify-center shadow-sm"
+              activeOpacity={0.7}>
               <Ionicons name="search-outline" size={24} color="#F59E0B" />
             </TouchableOpacity>
           </View>
@@ -83,7 +81,7 @@ export default function OrdersScreen() {
 
         {/* Stats Cards */}
         <View className="px-6 mt-2 flex-row gap-4">
-          <View className="flex-1 bg-white/70 backdrop-blur-md rounded-[32px] p-5 border border-white/50 shadow-sm relative overflow-hidden">
+          <View className="flex-1 bg-white rounded-[32px] p-5 shadow-sm relative overflow-hidden">
             <View className="absolute right-0 top-0 w-16 h-16 bg-[#10B981]/10 rounded-full -mr-6 -mt-6" />
             <View className="w-10 h-10 bg-[#D1FAE5] rounded-2xl items-center justify-center mb-3">
               <Ionicons
@@ -99,7 +97,7 @@ export default function OrdersScreen() {
               {completedCount}
             </Text>
           </View>
-          <View className="flex-1 bg-white/70 backdrop-blur-md rounded-[32px] p-5 border border-white/50 shadow-sm relative overflow-hidden">
+          <View className="flex-1 bg-white rounded-[32px] p-5 shadow-sm relative overflow-hidden">
             <View className="absolute right-0 top-0 w-16 h-16 bg-[#F59E0B]/10 rounded-full -mr-6 -mt-6" />
             <View className="w-10 h-10 bg-[#FFFBEB] rounded-2xl items-center justify-center mb-3">
               <Ionicons name="wallet" size={20} color="#F59E0B" />
@@ -118,22 +116,19 @@ export default function OrdersScreen() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 12 }}
-          >
+            contentContainerStyle={{ gap: 12 }}>
             <TouchableOpacity
               activeOpacity={0.7}
               onPress={() => setActiveFilter("all")}
               className={`px-6 py-3 rounded-full border ${
                 activeFilter === "all"
                   ? "bg-[#F59E0B] border-[#F59E0B] shadow-lg shadow-amber-200"
-                  : "bg-white/60 border-white/40"
-              }`}
-            >
+                  : "bg-white border-gray-200"
+              }`}>
               <Text
                 className={`font-bold ${
                   activeFilter === "all" ? "text-white" : "text-[#7A7A7A]"
-                }`}
-              >
+                }`}>
                 All Orders
               </Text>
             </TouchableOpacity>
@@ -143,14 +138,12 @@ export default function OrdersScreen() {
               className={`px-6 py-3 rounded-full border ${
                 activeFilter === "delivered"
                   ? "bg-[#10B981] border-[#10B981] shadow-lg shadow-emerald-200"
-                  : "bg-white/60 border-white/40"
-              }`}
-            >
+                  : "bg-white border-gray-200"
+              }`}>
               <Text
                 className={`font-bold ${
                   activeFilter === "delivered" ? "text-white" : "text-[#7A7A7A]"
-                }`}
-              >
+                }`}>
                 Completed
               </Text>
             </TouchableOpacity>
@@ -160,14 +153,12 @@ export default function OrdersScreen() {
               className={`px-6 py-3 rounded-full border ${
                 activeFilter === "cancelled"
                   ? "bg-[#EF4444] border-[#EF4444] shadow-lg shadow-red-200"
-                  : "bg-white/60 border-white/40"
-              }`}
-            >
+                  : "bg-white border-gray-200"
+              }`}>
               <Text
                 className={`font-bold ${
                   activeFilter === "cancelled" ? "text-white" : "text-[#7A7A7A]"
-                }`}
-              >
+                }`}>
                 Cancelled
               </Text>
             </TouchableOpacity>
@@ -184,7 +175,7 @@ export default function OrdersScreen() {
                   ? "Completed Orders"
                   : "Cancelled Orders"}
             </Text>
-            <View className="bg-white/40 px-3 py-1 rounded-full border border-white/40">
+            <View className="bg-gray-100 px-3 py-1 rounded-full">
               <Text className="text-xs font-bold text-[#6B7280]">
                 {filteredOrders.length}{" "}
                 {filteredOrders.length === 1 ? "Order" : "Orders"}
@@ -193,8 +184,8 @@ export default function OrdersScreen() {
           </View>
 
           {filteredOrders.length === 0 ? (
-            <View className="bg-white/70 backdrop-blur-md rounded-[32px] p-8 border border-white/50 shadow-sm items-center">
-              <View className="w-20 h-20 bg-white/80 rounded-full items-center justify-center mb-4">
+            <View className="bg-white rounded-[32px] p-8 shadow-sm items-center">
+              <View className="w-20 h-20 bg-gray-100 rounded-full items-center justify-center mb-4">
                 <Ionicons name="receipt-outline" size={36} color="#9CA3AF" />
               </View>
               <Text className="text-lg font-bold text-[#1A1A1A] mb-2">
@@ -220,10 +211,9 @@ export default function OrdersScreen() {
                 <TouchableOpacity
                   key={order.id}
                   activeOpacity={0.8}
-                  className="bg-white/70 backdrop-blur-md rounded-[32px] p-1 border border-white/50 mb-4 shadow-sm"
-                  onPress={() => router.push(`/orders/${order.id}`)}
-                >
-                  <View className="bg-white/40 rounded-[28px] p-5">
+                  className="bg-white rounded-[32px] p-1 mb-4 shadow-sm"
+                  onPress={() => router.push(`/orders/${order.id}`)}>
+                  <View className="bg-gray-50 rounded-[28px] p-5">
                     <View className="flex-row items-center justify-between mb-4">
                       <View className="flex-1">
                         <Text className="text-xs font-bold text-[#9CA3AF] mb-1 tracking-wider">
@@ -235,12 +225,10 @@ export default function OrdersScreen() {
                       </View>
                       <View
                         className="px-3 py-1.5 rounded-full"
-                        style={{ backgroundColor: statusStyle.bg }}
-                      >
+                        style={{ backgroundColor: statusStyle.bg }}>
                         <Text
                           className="text-xs font-bold"
-                          style={{ color: statusStyle.text }}
-                        >
+                          style={{ color: statusStyle.text }}>
                           {statusStyle.label}
                         </Text>
                       </View>
@@ -256,8 +244,7 @@ export default function OrdersScreen() {
                         </Text>
                         <Text
                           className="text-base font-bold text-[#1A1A1A] leading-tight"
-                          numberOfLines={1}
-                        >
+                          numberOfLines={1}>
                           {order.restaurantName}
                         </Text>
                       </View>

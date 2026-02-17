@@ -13,8 +13,7 @@ export default function SettingsScreen() {
     <View className="flex-1 bg-[#F3E0D9]">
       <View
         style={{ paddingTop: insets.top }}
-        className="px-6 pb-4 bg-white/50 border-b border-gray-200/50"
-      >
+        className="px-6 pb-4 bg-white border-b border-gray-200">
         <View className="flex-row items-center justify-between">
           <TouchableOpacity onPress={() => router.back()} className="p-2 -ml-2">
             <Ionicons name="arrow-back" size={24} color="#1A1A1A" />

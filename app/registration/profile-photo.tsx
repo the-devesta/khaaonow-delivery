@@ -161,15 +161,13 @@ export default function ProfilePhotoScreen() {
           paddingTop: insets.top + 10,
           paddingBottom: insets.bottom + 20,
         }}
-        showsVerticalScrollIndicator={false}
-      >
+        showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View className="px-6 mb-6">
           <TouchableOpacity
             onPress={() => router.back()}
-            className="w-10 h-10 bg-white/20 backdrop-blur-md rounded-full items-center justify-center border border-white/10 mb-6"
-            activeOpacity={0.8}
-          >
+            className="w-10 h-10 bg-white rounded-full items-center justify-center border border-white/10 mb-6"
+            activeOpacity={0.8}>
             <Ionicons name="arrow-back" size={20} color="#FFFFFF" />
           </TouchableOpacity>
 
@@ -191,21 +189,19 @@ export default function ProfilePhotoScreen() {
 
           {/* Glassmorphism Card */}
           <View
-            className="bg-white/20 backdrop-blur-md rounded-[32px] p-6 border-2 border-white/20 shadow-lg shadow-black/20"
+            className="bg-white rounded-[32px] p-6 border-2 border-white/20 shadow-lg shadow-black/20"
             style={{
               shadowColor: "#000",
               shadowOffset: { width: 0, height: 10 },
               shadowOpacity: 0.3,
               shadowRadius: 20,
-            }}
-          >
+            }}>
             {/* Profile Photo Area */}
             <View className="items-center mb-8">
               <TouchableOpacity
                 onPress={showOptions}
                 activeOpacity={0.8}
-                className="relative"
-              >
+                className="relative">
                 {profilePhoto ? (
                   <View className="relative">
                     <Image
@@ -218,8 +214,8 @@ export default function ProfilePhotoScreen() {
                     </View>
                   </View>
                 ) : (
-                  <View className="w-44 h-44 bg-white/5 rounded-full items-center justify-center border-4 border-dashed border-white/20">
-                    <View className="w-16 h-16 bg-white/10 rounded-full items-center justify-center mb-2">
+                  <View className="w-44 h-44 bg-gray-100 rounded-full items-center justify-center border-4 border-dashed border-gray-300">
+                    <View className="w-16 h-16 bg-gray-200 rounded-full items-center justify-center mb-2">
                       <Ionicons
                         name="person"
                         size={32}
@@ -235,15 +231,14 @@ export default function ProfilePhotoScreen() {
                 <TouchableOpacity
                   onPress={showOptions}
                   className="absolute bottom-0 right-0 bg-[#F59E0B] rounded-full p-3 shadow-lg border-2 border-white/10"
-                  activeOpacity={0.8}
-                >
+                  activeOpacity={0.8}>
                   <Ionicons name="camera" size={22} color="white" />
                 </TouchableOpacity>
               </TouchableOpacity>
             </View>
 
             {/* Guidelines */}
-            <View className="bg-white/5 rounded-2xl p-4 mb-6 border border-white/10">
+            <View className="bg-gray-50 rounded-2xl p-4 mb-6 border border-gray-200">
               <Text className="text-sm font-bold text-white mb-3 uppercase tracking-wider opacity-80">
                 Photo Guidelines
               </Text>
@@ -252,8 +247,7 @@ export default function ProfilePhotoScreen() {
                   key={index}
                   className={`flex-row items-center ${
                     index < PHOTO_GUIDELINES.length - 1 ? "mb-3" : ""
-                  }`}
-                >
+                  }`}>
                   <Ionicons
                     name={item.icon as any}
                     size={16}
@@ -272,8 +266,7 @@ export default function ProfilePhotoScreen() {
                 <TouchableOpacity
                   onPress={takePhoto}
                   className="bg-[#F59E0B] py-4 rounded-2xl flex-row items-center justify-center shadow-lg"
-                  activeOpacity={0.8}
-                >
+                  activeOpacity={0.8}>
                   <Ionicons name="camera-outline" size={22} color="white" />
                   <Text className="ml-2 text-base font-bold text-white">
                     Take Photo
@@ -283,8 +276,7 @@ export default function ProfilePhotoScreen() {
                 <TouchableOpacity
                   onPress={pickImage}
                   className="bg-white/10 py-4 rounded-2xl flex-row items-center justify-center border border-white/20"
-                  activeOpacity={0.7}
-                >
+                  activeOpacity={0.7}>
                   <Ionicons name="images-outline" size={22} color="white" />
                   <Text className="ml-2 text-base font-semibold text-white">
                     Choose from Gallery
