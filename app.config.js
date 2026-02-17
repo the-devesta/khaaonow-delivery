@@ -46,11 +46,13 @@ module.exports = {
       },
       supportsTablet: true,
       bundleIdentifier: "com.khaaonow.delivery",
-      googleServicesFile: process.env.IOS_GOOGLE_SERVICES_PLIST,
+      googleServicesFile:
+        process.env.IOS_GOOGLE_SERVICES_PLIST || "./GoogleService-Info.plist",
     },
     android: {
       package: "com.khaaonow.delivery",
-      googleServicesFile: process.env.ANDROID_GOOGLE_SERVICES_JSON,
+      googleServicesFile:
+        process.env.ANDROID_GOOGLE_SERVICES_JSON || "./google-services.json",
       adaptiveIcon: {
         backgroundColor: "#E6F4FE",
         foregroundImage: "./assets/images/logo2.png",
