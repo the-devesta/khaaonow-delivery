@@ -30,7 +30,7 @@ const getApiUrl = () => {
   }
 
   // Production fallback
-  const productionUrl = "https://khaaonow-be.azurewebsites.net/api";
+  const productionUrl = "https://api.khaaonow.com/api";
   console.log("🌐 [API] Using production backend:", productionUrl);
   return productionUrl;
 };
