@@ -1,5 +1,6 @@
 import { useAuthStore } from "@/store/auth";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import { useEffect, useRef } from "react";
@@ -10,8 +11,7 @@ SplashScreen.preventAutoHideAsync();
 
 export default function CustomSplashScreen() {
   const router = useRouter();
-  const { isAuthenticated, initializeAuth, getNavigationRoute, loading } =
-    useAuthStore();
+  const { initializeAuth, getNavigationRoute } = useAuthStore();
 
   // Animation values
   const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -78,6 +78,12 @@ export default function CustomSplashScreen() {
 
   return (
     <View style={styles.container}>
+      {/* Gradient Background */}
+      <LinearGradient
+        colors={["#FFFFFF", "#FFF9F0", "#FFFBF5"]}
+        style={StyleSheet.absoluteFillObject}
+      />
+
       {/* Animated logo container with zoom-out effect */}
       <Animated.View
         style={[
@@ -88,14 +94,17 @@ export default function CustomSplashScreen() {
             shadowOpacity: shadowOpacity,
             shadowRadius: shadowRadius,
           },
-        ]}
-      >
-        {/* Main logo */}
-        <Image
-          source={require("../assets/images/logo1.png")}
-          style={styles.logo}
-          contentFit="contain"
-        />
+        ]}>
+        {/* Circular logo with gradient border */}
+        <View style={styles.outerCircle}>
+          <View style={styles.logoCircle}>
+            <Image
+              source={require("../assets/images/DeliveryKhaaoNow.png")}
+              style={styles.logo}
+              contentFit="cover"
+            />
+          </View>
+        </View>
       </Animated.View>
     </View>
   );
@@ -104,23 +113,42 @@ export default function CustomSplashScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#FFD600", // Yellow primary
+    backgroundColor: "#FFFFFF",
     alignItems: "center",
     justifyContent: "center",
   },
   logoContainer: {
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: "#F57F17", // darker yellow/orange shadow
+  },
+  outerCircle: {
+    width: 250,
+    height: 250,
+    borderRadius: 150,
+    backgroundColor: "#FFFFFF",
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#F59E0B",
     shadowOffset: {
       width: 0,
       height: 15,
     },
-    elevation: 15,
+    shadowOpacity: 0.25,
+    shadowRadius: 25,
+    elevation: 20,
+  },
+  logoCircle: {
+    width: 260,
+    height: 260,
+    borderRadius: 130,
+    backgroundColor: "#F7B731",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
   },
   logo: {
-    width: 280,
-    height: 280,
-    borderRadius: 140,
+    width: 260,
+    height: 260,
+    borderRadius: 130,
   },
 });

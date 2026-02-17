@@ -15,7 +15,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Dimensions,
   RefreshControl,
   ScrollView,
   StatusBar,
@@ -56,8 +55,6 @@ interface ProfileData {
   name?: string;
   phone: string;
 }
-
-const { width } = Dimensions.get("window");
 
 export default function HomeScreen() {
   const router = useRouter();

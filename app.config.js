@@ -8,13 +8,10 @@ const plugins = [
   [
     "expo-splash-screen",
     {
-      image: "./assets/images/logo2.png",
-      imageWidth: 200,
+      image: "./assets/images/DeliveryKhaaoNow.png",
+      imageWidth: 250,
       resizeMode: "contain",
-      backgroundColor: "#ffffff",
-      dark: {
-        backgroundColor: "#000000",
-      },
+      backgroundColor: "#FFFFFF",
     },
   ],
 ];
@@ -31,7 +28,7 @@ module.exports = {
     slug: "khaaonow-delivery",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/images/logo2.png",
+    icon: "./assets/images/DeliveryKhaaoNow.png",
     scheme: "khaaonowdelivery",
     userInterfaceStyle: "automatic",
     newArchEnabled: true,
@@ -54,10 +51,8 @@ module.exports = {
       googleServicesFile:
         process.env.ANDROID_GOOGLE_SERVICES_JSON || "./google-services.json",
       adaptiveIcon: {
-        backgroundColor: "#E6F4FE",
-        foregroundImage: "./assets/images/logo2.png",
-        backgroundImage: "./assets/images/logo2.png",
-        monochromeImage: "./assets/images/logo2.png",
+        backgroundColor: "#F7B731",
+        foregroundImage: "./assets/images/DeliveryKhaaoNow.png",
       },
       edgeToEdgeEnabled: true,
       intentFilters: [
@@ -77,7 +72,7 @@ module.exports = {
     },
     web: {
       output: "static",
-      favicon: "./assets/images/favicon.png",
+      favicon: "./assets/images/DeliveryKhaaoNow.png",
     },
     plugins: plugins,
     experiments: {
