@@ -1,6 +1,33 @@
 import Constants from "expo-constants";
 import * as FileSystem from "expo-file-system/legacy";
+import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { getDeliveryPartnerToken } from "./api";
+
+// Raw camera photos on modern phones are commonly 3000px+ wide and several
+// MB even at reduced JPEG quality (quality only affects compression, not
+// dimensions) — slow to upload, and large enough to trip nginx's default
+// 1MB client_max_body_size on the server (413 Request Entity Too Large).
+// Resizing to a sane max width before upload fixes both.
+const MAX_UPLOAD_DIMENSION = 1280;
+const UPLOAD_JPEG_QUALITY = 0.7;
+
+const compressForUpload = async (uri: string): Promise<string> => {
+  try {
+    const result = await ImageManipulator.manipulate(uri)
+      .resize({ width: MAX_UPLOAD_DIMENSION })
+      .renderAsync();
+    const saved = await result.saveAsync({
+      compress: UPLOAD_JPEG_QUALITY,
+      format: SaveFormat.JPEG,
+    });
+    return saved.uri;
+  } catch (error) {
+    // Compression is a best-effort optimization — never let a failure here
+    // block the actual upload.
+    console.warn("[Storage] Image compression failed, uploading original:", error);
+    return uri;
+  }
+};
 
 // Resolve the backend base URL (same logic as api.ts)
 const getBaseUrl = (): string => {
@@ -34,7 +61,13 @@ export const uploadImageToFirebase = async (
     const token = await getDeliveryPartnerToken();
     if (!token) throw new Error("Not authenticated — no token in storage");
 
-    // Determine MIME type from extension
+    // Resized/compressed output is always JPEG regardless of the source
+    // format, so the mimeType is fixed once compression succeeds. Only
+    // falls back to sniffing the original extension if compression itself
+    // failed and the original file is being uploaded as-is.
+    const compressedUri = await compressForUpload(uri);
+    const wasCompressed = compressedUri !== uri;
+
     const ext = uri.split(".").pop()?.toLowerCase() ?? "jpg";
     const mimeMap: Record<string, string> = {
       jpg: "image/jpeg",
@@ -44,14 +77,14 @@ export const uploadImageToFirebase = async (
       webp: "image/webp",
       heic: "image/heic",
     };
-    const mimeType = mimeMap[ext] ?? "image/jpeg";
+    const mimeType = wasCompressed ? "image/jpeg" : (mimeMap[ext] ?? "image/jpeg");
 
     const baseUrl = getBaseUrl();
     const uploadUrl = `${baseUrl}/delivery-partners/upload-image`;
 
     console.log(`📤 [Storage] Uploading to backend: ${uploadUrl}`);
 
-    const response = await FileSystem.uploadAsync(uploadUrl, uri, {
+    const response = await FileSystem.uploadAsync(uploadUrl, compressedUri, {
       httpMethod: "POST",
       uploadType: FileSystem.FileSystemUploadType.MULTIPART,
       fieldName: "image",
