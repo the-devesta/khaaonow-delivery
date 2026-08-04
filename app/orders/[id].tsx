@@ -268,6 +268,7 @@ export default function OrderDetailsScreen() {
   > | null>(null);
   const [driverLocation, setDriverLoc] = useState<Location | null>(null);
   const [isMapCollapsed, setIsMapCollapsed] = useState(false);
+  const [itemsExpanded, setItemsExpanded] = useState(false);
   const contactSheetRef = useRef<BottomSheetModal>(null);
   const mapHeightAnim = useRef(new Animated.Value(1)).current; // 1 = full, 0 = collapsed
 
@@ -1076,7 +1077,7 @@ export default function OrderDetailsScreen() {
           style={{
             height: mapHeightAnim.interpolate({
               inputRange: [0, 1],
-              outputRange: [230, 430],
+              outputRange: [188, 388],
             }),
           }}>
           {/* Map Section */}
@@ -1145,36 +1146,27 @@ export default function OrderDetailsScreen() {
             </TouchableOpacity>
           </Animated.View>
 
-          <View style={orderStyles.statusStrip}>
+          <View style={orderStyles.progressStrip}>
             {STEPS.map((step, index) => {
               const stepNumber = index + 1;
               const isDone = stepNumber < currentStep;
               const isActive = stepNumber === currentStep;
               return (
-                <View
-                  key={step.labelKey}
-                  style={[
-                    orderStyles.statusPill,
-                    isActive && orderStyles.statusPillActive,
-                    isDone && orderStyles.statusPillDone,
-                  ]}>
-                  <Ionicons
-                    name={
-                      isDone
-                        ? "checkmark"
-                        : (step.icon as any)
-                    }
-                    size={13}
-                    color={isActive || isDone ? "#FFFFFF" : "#6B7280"}
-                  />
-                  <Text
+                <View key={step.labelKey} style={orderStyles.progressSegmentWrap}>
+                  <View
                     style={[
-                      orderStyles.statusPillText,
-                      (isActive || isDone) && orderStyles.statusPillTextActive,
+                      orderStyles.progressDot,
+                      (isDone || isActive) && orderStyles.progressDotFilled,
                     ]}
-                    numberOfLines={1}>
-                    {t(step.labelKey)}
-                  </Text>
+                  />
+                  {index < STEPS.length - 1 && (
+                    <View
+                      style={[
+                        orderStyles.progressLine,
+                        isDone && orderStyles.progressLineFilled,
+                      ]}
+                    />
+                  )}
                 </View>
               );
             })}
@@ -1288,32 +1280,28 @@ export default function OrderDetailsScreen() {
             )}
 
             {isActiveOrder && displayOrder.status !== "returning_to_restaurant" && (
-              <View className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-3">
-                <View className="flex-row items-start">
-                  <Ionicons name="battery-charging-outline" size={18} color="#D97706" />
-                  <Text className="text-amber-700 font-semibold text-xs ml-2 flex-1">
-                    Keep the app open during active delivery. If tracking stops,
-                    disable battery saver for KhaaoNow Delivery.
+              <View className="flex-row items-center justify-between px-1 mb-3">
+                <View className="flex-row items-center flex-1 mr-2">
+                  <Ionicons name="battery-charging-outline" size={14} color="#9CA3AF" />
+                  <Text
+                    className="text-[11px] text-gray-400 font-medium ml-1.5 flex-1"
+                    numberOfLines={2}>
+                    Keep the app open — disable battery saver if tracking stops
                   </Text>
                 </View>
-                <View className="flex-row gap-2 mt-3">
-                  <TouchableOpacity
-                    onPress={reportDelay}
-                    disabled={reportingIssue}
-                    className="flex-1 bg-white rounded-xl py-2.5 items-center border border-amber-100">
-                    <Text className="text-amber-700 font-bold text-xs">
-                      Report Delay
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    onPress={requestReassignment}
-                    disabled={reportingIssue}
-                    className="flex-1 bg-white rounded-xl py-2.5 items-center border border-red-100">
-                    <Text className="text-red-600 font-bold text-xs">
-                      Reassign
-                    </Text>
-                  </TouchableOpacity>
-                </View>
+                <TouchableOpacity
+                  onPress={reportDelay}
+                  disabled={reportingIssue}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                  <Text className="text-xs font-bold text-amber-600">Delay</Text>
+                </TouchableOpacity>
+                <Text className="text-gray-300 mx-2">|</Text>
+                <TouchableOpacity
+                  onPress={requestReassignment}
+                  disabled={reportingIssue}
+                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
+                  <Text className="text-xs font-bold text-red-600">Reassign</Text>
+                </TouchableOpacity>
               </View>
             )}
 
@@ -1352,17 +1340,29 @@ export default function OrderDetailsScreen() {
 
             {/* Order Items */}
             <View className="bg-white rounded-2xl p-4  border border-gray-100 mb-3">
-              <View className="flex-row items-center mb-3">
+              <TouchableOpacity
+                onPress={() => setItemsExpanded((v) => !v)}
+                activeOpacity={0.7}
+                className={`flex-row items-center ${itemsExpanded ? "mb-3" : ""}`}>
                 <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center ">
                   <Ionicons name="fast-food" size={20} color="#3B82F6" />
                 </View>
                 <Text
-                  className="text-sm font-bold text-gray-900 ml-3"
+                  className="text-sm font-bold text-gray-900 ml-3 flex-1"
                   numberOfLines={1}>
                   Order Items
                 </Text>
-              </View>
-              {(displayOrder.items || []).map(
+                <Text className="text-xs font-semibold text-gray-400 mr-2">
+                  {(displayOrder.items || []).length}
+                </Text>
+                <Ionicons
+                  name={itemsExpanded ? "chevron-up" : "chevron-down"}
+                  size={18}
+                  color="#9CA3AF"
+                />
+              </TouchableOpacity>
+              {itemsExpanded &&
+                (displayOrder.items || []).map(
                 (
                   item: {
                     name:
@@ -1440,7 +1440,7 @@ export default function OrderDetailsScreen() {
                   </View>
                 ),
               )}
-              {(displayOrder.items || []).length === 0 && (
+              {itemsExpanded && (displayOrder.items || []).length === 0 && (
                 <Text className="text-xs text-gray-400 py-2">
                   {t("orderDetail.noItemsFound")}
                 </Text>
@@ -1655,45 +1655,36 @@ const navStyles = StyleSheet.create({
 });
 
 const orderStyles = StyleSheet.create({
-  statusStrip: {
-    height: 70,
+  progressStrip: {
+    height: 28,
     backgroundColor: "#F9FAFB",
-    paddingHorizontal: 12,
-    paddingTop: 10,
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 7,
-  },
-  statusPill: {
-    flex: 1,
-    minWidth: 0,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "#E5E7EB",
+    paddingHorizontal: 20,
     flexDirection: "row",
     alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: 7,
-    gap: 4,
   },
-  statusPillActive: {
-    backgroundColor: "#111827",
-    borderColor: "#111827",
+  progressSegmentWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
   },
-  statusPillDone: {
+  progressDot: {
+    width: 9,
+    height: 9,
+    borderRadius: 5,
+    backgroundColor: "#E5E7EB",
+    flexShrink: 0,
+  },
+  progressDotFilled: {
     backgroundColor: "#10B981",
-    borderColor: "#10B981",
   },
-  statusPillText: {
-    color: "#6B7280",
-    fontSize: 10,
-    fontWeight: "800",
-    flexShrink: 1,
+  progressLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: "#E5E7EB",
+    marginHorizontal: 4,
   },
-  statusPillTextActive: {
-    color: "#FFFFFF",
+  progressLineFilled: {
+    backgroundColor: "#10B981",
   },
   mapRouteBar: {
     position: "absolute",
