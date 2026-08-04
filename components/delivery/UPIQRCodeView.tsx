@@ -229,14 +229,14 @@ export default function UPIQRCodeView({
         <TouchableOpacity
           activeOpacity={1}
           onPress={() => setFullScreenVisible(false)}
-          className="flex-1 bg-black/90 items-center justify-center px-8">
+          className="flex-1 bg-black/95 items-center justify-center px-4">
           {qrUrl && (
-            <View className="bg-white rounded-3xl p-5 items-center">
+            <View className="bg-white rounded-3xl p-4 items-center w-full">
               <Image
                 source={{ uri: qrUrl }}
                 style={{
-                  width: Dimensions.get("window").width - 96,
-                  height: Dimensions.get("window").width - 96,
+                  width: Dimensions.get("window").width - 64,
+                  height: Dimensions.get("window").width - 64,
                 }}
                 resizeMode="contain"
               />
