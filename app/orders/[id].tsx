@@ -710,10 +710,10 @@ export default function OrderDetailsScreen() {
     }
   };
 
-  const handlePaymentConfirmed = async () => {
+  const handlePaymentConfirmed = async (reusedProofPhotoUrl?: string) => {
     setPaymentModalVisible(false);
     setPaymentConfirmed(true);
-    await completeDeliveryWithProof();
+    await completeDeliveryWithProof(reusedProofPhotoUrl);
   };
 
   const ensureCurrentLocation = async (): Promise<Location | null> => {
@@ -784,14 +784,17 @@ export default function OrderDetailsScreen() {
     return uploadImageToFirebase(result.assets[0].uri, "delivery_proofs");
   };
 
-  const completeDeliveryWithProof = async () => {
+  const completeDeliveryWithProof = async (reusedProofPhotoUrl?: string) => {
     setLoading(true);
     setProofUploading(true);
     try {
       const loc = await ensureCurrentLocation();
       if (!loc) return;
 
-      const proofPhotoUrl = await captureProofPhoto();
+      // If the rider already photographed the payment confirmation (admin-QR
+      // path), reuse that instead of asking for a second, near-identical
+      // photo of the same handoff.
+      const proofPhotoUrl = reusedProofPhotoUrl || (await captureProofPhoto());
       if (!proofPhotoUrl) return;
 
       const success = await updateOrderStatus("delivered", {

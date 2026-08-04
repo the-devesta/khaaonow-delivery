@@ -22,7 +22,7 @@ import { uploadImageToFirebase } from "../../services/storage";
 interface Props {
   orderId: string;
   totalAmount: number;
-  onPaymentConfirmed: () => void;
+  onPaymentConfirmed: (proofPhotoUrl?: string) => void;
 }
 
 export default function AdminQrPaymentProof({
@@ -80,7 +80,9 @@ export default function AdminQrPaymentProof({
     try {
       const proofPhotoUrl = await uploadImageToFirebase(photoUri, "admin-qr-payment-proofs");
       await paymentService.markAdminQrPaid(orderId, proofPhotoUrl);
-      onPaymentConfirmed();
+      // Pass the photo up so the delivery-completion step can reuse it
+      // instead of asking the rider to take a second, near-identical photo.
+      onPaymentConfirmed(proofPhotoUrl);
     } catch (error: any) {
       Alert.alert(
         "Failed to Confirm",

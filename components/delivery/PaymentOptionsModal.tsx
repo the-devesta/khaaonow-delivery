@@ -35,7 +35,12 @@ interface Props {
   totalAmount: number;
   paymentMethod: string; // raw field from backend
   paymentStatus: string;
-  onPaymentConfirmed: () => void;
+  /**
+   * proofPhotoUrl is populated only by the admin-QR payment path — lets the
+   * caller reuse that photo as the delivery-completion proof instead of
+   * asking the rider to take a second, near-identical one.
+   */
+  onPaymentConfirmed: (proofPhotoUrl?: string) => void;
   onClose: () => void;
 }
 
@@ -348,9 +353,9 @@ function PaymentOptionsModal(
           <AdminQrPaymentProof
             orderId={orderId}
             totalAmount={totalAmount}
-            onPaymentConfirmed={() => {
+            onPaymentConfirmed={(proofPhotoUrl) => {
               setSubView("menu");
-              onPaymentConfirmed();
+              onPaymentConfirmed(proofPhotoUrl);
             }}
           />
         )}
