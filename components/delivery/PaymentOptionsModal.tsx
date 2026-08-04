@@ -21,6 +21,7 @@ import {
 } from "react-native";
 import { useTranslation } from "react-i18next";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import AdminQrPaymentProof from "./AdminQrPaymentProof";
 import CODOtpVerification from "./CODOtpVerification";
 import PaymentLinkGenerator from "./PaymentLinkGenerator";
 import UPIQRCodeView from "./UPIQRCodeView";
@@ -38,7 +39,7 @@ interface Props {
   onClose: () => void;
 }
 
-type SubView = "menu" | "cod_otp" | "payment_link" | "upi_qr";
+type SubView = "menu" | "cod_otp" | "payment_link" | "upi_qr" | "admin_qr_proof";
 
 export type PaymentOptionsModalHandle = {
   present: () => void;
@@ -179,7 +180,9 @@ function PaymentOptionsModal(
                   ? t("payment.deliveryVerification")
                   : subView === "payment_link"
                     ? t("payment.paymentLink")
-                    : t("payment.upiQrCode")}
+                    : subView === "admin_qr_proof"
+                      ? "Paid to Admin's QR"
+                      : t("payment.upiQrCode")}
             </Text>
             <TouchableOpacity onPress={handleClose} hitSlop={8}>
               <Ionicons name="close" size={22} color="#6B7280" />
@@ -261,6 +264,19 @@ function PaymentOptionsModal(
                     setSubView("payment_link");
                   }}
                 />
+                <OptionButton
+                  icon="shield-checkmark-outline"
+                  title="Paid to Admin's QR"
+                  subtitle="Customer paid directly to admin's own QR — upload proof"
+                  onPress={() => {
+                    debugPaymentSheet("option selected", {
+                      orderId,
+                      orderNumber,
+                      option: "admin_qr_proof",
+                    });
+                    setSubView("admin_qr_proof");
+                  }}
+                />
               </View>
             ) : (
               /* pay_at_delivery options */
@@ -319,6 +335,17 @@ function PaymentOptionsModal(
 
         {subView === "upi_qr" && (
           <UPIQRCodeView
+            orderId={orderId}
+            totalAmount={totalAmount}
+            onPaymentConfirmed={() => {
+              setSubView("menu");
+              onPaymentConfirmed();
+            }}
+          />
+        )}
+
+        {subView === "admin_qr_proof" && (
+          <AdminQrPaymentProof
             orderId={orderId}
             totalAmount={totalAmount}
             onPaymentConfirmed={() => {
