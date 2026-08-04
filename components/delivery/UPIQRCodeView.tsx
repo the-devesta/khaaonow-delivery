@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Image,
+  Modal,
   Text,
   TouchableOpacity,
   View,
@@ -36,7 +37,15 @@ export default function UPIQRCodeView({
   const [phase, setPhase] = useState<Phase>("idle");
   const [qrUrl, setQrUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
+  const [fullScreenVisible, setFullScreenVisible] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Payment can be detected (socket/Firebase/poll) while the rider is
+  // looking at the zoomed QR — close it automatically so the "Payment
+  // Done!" state underneath is actually visible.
+  useEffect(() => {
+    if (phase === "paid") setFullScreenVisible(false);
+  }, [phase]);
 
   const stopPolling = () => {
     if (pollRef.current) {
@@ -150,14 +159,21 @@ export default function UPIQRCodeView({
         <>
           {/* QR image */}
           <View className="items-center mb-4">
-            <View className="bg-white border-2 border-gray-100 rounded-2xl p-3 shadow-sm">
+            <TouchableOpacity
+              onPress={() => setFullScreenVisible(true)}
+              activeOpacity={0.85}
+              className="bg-white border-2 border-gray-100 rounded-2xl p-3 shadow-sm">
               <Image
                 source={{ uri: qrUrl }}
                 style={{ width: QR_SIZE, height: QR_SIZE }}
                 resizeMode="contain"
               />
+            </TouchableOpacity>
+            <View className="flex-row items-center gap-1 mt-2">
+              <Ionicons name="expand-outline" size={12} color="#9CA3AF" />
+              <Text className="text-gray-400 text-xs">Tap to view full screen</Text>
             </View>
-            <Text className="text-gray-500 text-xs mt-2">
+            <Text className="text-gray-500 text-xs mt-1">
               Amount: ₹{totalAmount}
             </Text>
           </View>
@@ -204,6 +220,40 @@ export default function UPIQRCodeView({
           </TouchableOpacity>
         </>
       )}
+
+      <Modal
+        visible={fullScreenVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFullScreenVisible(false)}>
+        <TouchableOpacity
+          activeOpacity={1}
+          onPress={() => setFullScreenVisible(false)}
+          className="flex-1 bg-black/90 items-center justify-center px-8">
+          {qrUrl && (
+            <View className="bg-white rounded-3xl p-5 items-center">
+              <Image
+                source={{ uri: qrUrl }}
+                style={{
+                  width: Dimensions.get("window").width - 96,
+                  height: Dimensions.get("window").width - 96,
+                }}
+                resizeMode="contain"
+              />
+              <Text className="text-gray-500 text-sm mt-3">
+                Amount: ₹{totalAmount}
+              </Text>
+            </View>
+          )}
+          <TouchableOpacity
+            onPress={() => setFullScreenVisible(false)}
+            activeOpacity={0.8}
+            className="mt-6 w-11 h-11 bg-white/15 rounded-full items-center justify-center">
+            <Ionicons name="close" size={22} color="#FFFFFF" />
+          </TouchableOpacity>
+          <Text className="text-white/60 text-xs mt-3">Tap anywhere to close</Text>
+        </TouchableOpacity>
+      </Modal>
     </View>
   );
 }
