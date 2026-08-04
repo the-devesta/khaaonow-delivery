@@ -1,23 +1,21 @@
 import { ApiService } from "@/services/api";
 import { useAuthStore } from "@/store/auth";
 import { Ionicons } from "@expo/vector-icons";
-import Constants from "expo-constants";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Animated,
-  Linking,
-  Platform,
   RefreshControl,
   ScrollView,
   Text,
   TouchableOpacity,
   View,
 } from "react-native";
-import SettingsService from "@/services/settings.service";
 import { useTranslation } from "react-i18next";
+import UpdateAppDialog from "@/components/UpdateAppDialog";
+import { useAppUpdateCheck } from "@/hooks/useAppUpdateCheck";
 
 interface ProfileData {
   id: string;
@@ -34,21 +32,6 @@ interface ProfileData {
   onboardingStatus: string;
 }
 
-const compareVersions = (current: string, target: string): number => {
-  const currentParts = current.split(".").map((part) => Number(part) || 0);
-  const targetParts = target.split(".").map((part) => Number(part) || 0);
-  const length = Math.max(currentParts.length, targetParts.length);
-
-  for (let index = 0; index < length; index += 1) {
-    const currentPart = currentParts[index] ?? 0;
-    const targetPart = targetParts[index] ?? 0;
-    if (currentPart > targetPart) return 1;
-    if (currentPart < targetPart) return -1;
-  }
-
-  return 0;
-};
-
 export default function ProfileScreen() {
   const router = useRouter();
   const { t } = useTranslation();
@@ -56,10 +39,8 @@ export default function ProfileScreen() {
   const [profile, setProfile] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [appUpdate, setAppUpdate] = useState<{
-    latestVersion: string;
-    updateUrl?: string;
-  } | null>(null);
+  const appUpdate = useAppUpdateCheck();
+  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
 
   // Animation values
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -85,7 +66,8 @@ export default function ProfileScreen() {
 
   useEffect(() => {
     fetchProfile();
-    loadAppUpdate();
+    appUpdate.check();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleRefresh = () => {
@@ -98,33 +80,6 @@ export default function ProfileScreen() {
     router.replace("/auth/login");
   };
 
-  const loadAppUpdate = async () => {
-    const status = await SettingsService.getPublicAppStatus();
-    const platform = Platform.OS === "ios" ? "ios" : "android";
-    const platformTarget = status.deliveryApp.platforms?.[platform];
-    const latestVersion =
-      platformTarget?.latestVersion || status.deliveryApp.latestVersion;
-    const updateUrl =
-      platformTarget?.updateUrl ||
-      (platform === "ios"
-        ? status.deliveryApp.updateUrls.ios
-        : status.deliveryApp.updateUrls.android) ||
-      undefined;
-    const currentVersion = Constants.expoConfig?.version ?? "0.0.0";
-
-    setAppUpdate(
-      compareVersions(currentVersion, latestVersion) < 0
-        ? { latestVersion, updateUrl }
-        : null,
-    );
-  };
-
-  const openAppUpdate = async () => {
-    if (appUpdate?.updateUrl) {
-      await Linking.openURL(appUpdate.updateUrl);
-    }
-  };
-
   const getInitials = (name?: string) => {
     if (!name) return "DP";
     const parts = name.split(" ");
@@ -134,20 +89,6 @@ export default function ProfileScreen() {
   };
 
   const menuItems = [
-    ...(appUpdate
-      ? [
-          {
-            id: "app-update",
-            title: t("profile.appUpdateAvailable"),
-            icon: "sync-outline",
-            route: "",
-            onPress: openAppUpdate,
-            color: "#F97316",
-            bg: "#FFF7ED",
-            subtitle: `v${appUpdate.latestVersion}`,
-          },
-        ]
-      : []),
     {
       id: 1,
       title: t("profile.editProfile"),
@@ -324,9 +265,7 @@ export default function ProfileScreen() {
               <TouchableOpacity
                 key={item.id}
                 activeOpacity={0.7}
-                onPress={() =>
-                  item.onPress ? item.onPress() : item.route && router.push(item.route as any)
-                }
+                onPress={() => router.push(item.route as any)}
                 className="flex-row items-center justify-between bg-white rounded-[24px] p-4 "
               >
                 <View className="flex-row items-center flex-1">
@@ -343,16 +282,69 @@ export default function ProfileScreen() {
                   <Text className="text-base font-bold text-[#1A1A1A]">
                     {item.title}
                   </Text>
-                  {"subtitle" in item && item.subtitle ? (
-                    <Text className="text-xs font-semibold text-[#F97316] mt-0.5">
-                      {item.subtitle}
-                    </Text>
-                  ) : null}
                 </View>
                 <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
               </TouchableOpacity>
             ))}
           </View>
+
+          {/* App Update */}
+          <TouchableOpacity
+            activeOpacity={0.8}
+            disabled={appUpdate.result?.status !== "update_available"}
+            onPress={() => setShowUpdateDialog(true)}
+            className="bg-white rounded-[24px] p-4 mb-3 flex-row items-center"
+          >
+            <View
+              className="w-11 h-11 rounded-2xl items-center justify-center mr-4"
+              style={{
+                backgroundColor:
+                  appUpdate.result?.status === "update_available"
+                    ? "#FFF7ED"
+                    : "#F0FDF4",
+              }}
+            >
+              <Ionicons
+                name={
+                  appUpdate.result?.status === "update_available"
+                    ? "rocket-outline"
+                    : "checkmark-circle-outline"
+                }
+                size={20}
+                color={
+                  appUpdate.result?.status === "update_available"
+                    ? "#F97316"
+                    : "#16A34A"
+                }
+              />
+            </View>
+            <View className="flex-1">
+              <Text className="text-base font-bold text-[#1A1A1A]">
+                App Version
+              </Text>
+              <Text className="text-xs text-[#9CA3AF] mt-0.5">
+                v{appUpdate.currentVersion}
+              </Text>
+            </View>
+            {appUpdate.checking ? (
+              <ActivityIndicator size="small" color="#9CA3AF" />
+            ) : appUpdate.result?.status === "update_available" ? (
+              <View className="bg-[#FFF7ED] rounded-full px-3 py-1.5">
+                <Text className="text-xs font-bold text-[#F97316]">
+                  Update to v{appUpdate.result.latestVersion}
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => appUpdate.check()}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <Text className="text-xs font-bold text-[#3B82F6]">
+                  Check for Updates
+                </Text>
+              </TouchableOpacity>
+            )}
+          </TouchableOpacity>
 
           {/* Logout Button */}
           <TouchableOpacity
@@ -370,10 +362,18 @@ export default function ProfileScreen() {
 
           {/* App Version */}
           <Text className="text-xs text-[#9CA3AF] text-center mt-8 font-medium">
-            Khaaonow Delivery Partner v{Constants.expoConfig?.version ?? "1.0.0"}
+            Khaaonow Delivery Partner v{appUpdate.currentVersion}
           </Text>
         </View>
       </ScrollView>
+
+      {appUpdate.result?.status === "update_available" && (
+        <UpdateAppDialog
+          visible={showUpdateDialog}
+          updateInfo={appUpdate.result}
+          onDismiss={() => setShowUpdateDialog(false)}
+        />
+      )}
     </View>
   );
 }

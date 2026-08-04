@@ -1,4 +1,5 @@
 import { useColorScheme } from "@/hooks/use-color-scheme";
+import { PortalHost } from "@rn-primitives/portal";
 import {
   DarkTheme,
   DefaultTheme,
@@ -55,6 +56,7 @@ export default function RootLayout() {
               </Stack>
             </AppStatusGate>
             <StatusBar style="auto" />
+            <PortalHost />
           </ThemeProvider>
         </BottomSheetModalProvider>
       </SafeAreaProvider>

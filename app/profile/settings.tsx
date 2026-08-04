@@ -1,4 +1,5 @@
 import { ApiService } from "@/services/api";
+import { getCurrentAppVersion } from "@/services/appUpdateService";
 import { useAuthStore } from "@/store/auth";
 import { AppLanguage, getLanguageLabel, LANGUAGES, setSavedLanguage } from "@/i18n";
 import {
@@ -194,7 +195,7 @@ export default function SettingsScreen() {
             <Text className="text-gray-700 font-medium ml-1">
               {t("settings.appVersion")}
             </Text>
-            <Text className="text-gray-500">1.0.0</Text>
+            <Text className="text-gray-500">{getCurrentAppVersion()}</Text>
           </View>
         </View>
 
