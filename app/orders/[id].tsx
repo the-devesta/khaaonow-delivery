@@ -17,6 +17,7 @@ import {
   BottomSheetView,
 } from "@gorhom/bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Device from "expo-device";
 import * as ExpoLocation from "expo-location";
 import * as ImagePicker from "expo-image-picker";
@@ -269,6 +270,7 @@ export default function OrderDetailsScreen() {
   const [driverLocation, setDriverLoc] = useState<Location | null>(null);
   const [isMapCollapsed, setIsMapCollapsed] = useState(false);
   const [itemsExpanded, setItemsExpanded] = useState(false);
+  const [phoneCopied, setPhoneCopied] = useState(false);
   const contactSheetRef = useRef<BottomSheetModal>(null);
   const mapHeightAnim = useRef(new Animated.Value(1)).current; // 1 = full, 0 = collapsed
 
@@ -883,6 +885,13 @@ export default function OrderDetailsScreen() {
     openPhoneDialer(contactPhone);
   };
 
+  const copyContactPhone = async () => {
+    if (!contactPhone) return;
+    await Clipboard.setStringAsync(contactPhone);
+    setPhoneCopied(true);
+    setTimeout(() => setPhoneCopied(false), 2000);
+  };
+
   const orderOverlays = (
     <>
       {/* Payment sheet — must be mounted in normal and fullscreen navigation modes. */}
@@ -929,11 +938,32 @@ export default function OrderDetailsScreen() {
             <Ionicons name="call" size={18} color="#FFFFFF" />
             <Text style={orderStyles.contactSheetCallButtonText}>Call now</Text>
           </TouchableOpacity>
-          <Text selectable style={orderStyles.contactSheetPhone}>
-            {contactPhone || "Phone number unavailable"}
-          </Text>
+          <View style={orderStyles.contactSheetPhoneRow}>
+            <Text selectable style={orderStyles.contactSheetPhone}>
+              {contactPhone || "Phone number unavailable"}
+            </Text>
+            {contactPhone && (
+              <TouchableOpacity
+                onPress={copyContactPhone}
+                activeOpacity={0.7}
+                style={orderStyles.contactSheetCopyButton}>
+                <Ionicons
+                  name={phoneCopied ? "checkmark" : "copy-outline"}
+                  size={16}
+                  color={phoneCopied ? "#10B981" : "#6B7280"}
+                />
+                <Text
+                  style={[
+                    orderStyles.contactSheetCopyButtonText,
+                    phoneCopied && { color: "#10B981" },
+                  ]}>
+                  {phoneCopied ? "Copied" : "Copy"}
+                </Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <Text style={orderStyles.contactSheetHint}>
-            If the call button does not open, long-press/copy this number and dial manually.
+            If the call button does not open, copy the number and dial manually.
           </Text>
         </BottomSheetView>
       </BottomSheetModal>
@@ -1901,12 +1931,32 @@ const orderStyles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "900",
   },
+  contactSheetPhoneRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+    marginTop: 14,
+  },
   contactSheetPhone: {
     color: "#111827",
     fontSize: 18,
     fontWeight: "900",
-    marginTop: 14,
     textAlign: "center",
+  },
+  contactSheetCopyButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: "#F3F4F6",
+  },
+  contactSheetCopyButtonText: {
+    color: "#6B7280",
+    fontSize: 11,
+    fontWeight: "800",
   },
   contactSheetHint: {
     color: "#9CA3AF",
