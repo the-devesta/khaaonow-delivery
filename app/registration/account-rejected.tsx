@@ -17,9 +17,9 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useTranslation } from "react-i18next";
 
-const SUPPORT_PHONE = "+919875054989";
+const SUPPORT_PHONE = "+919875054898";
 const SUPPORT_EMAIL = "support@khaaonow.com";
-const SUPPORT_WHATSAPP_PHONE = "919875054989";
+const SUPPORT_WHATSAPP_PHONE = "919875054898";
 
 export default function AccountRejectedScreen() {
   const router = useRouter();
