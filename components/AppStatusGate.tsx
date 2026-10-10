@@ -1,5 +1,8 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Constants from "expo-constants";
+import * as SplashScreen from "expo-splash-screen";
+import { Ionicons } from "@expo/vector-icons";
+import { useTranslation } from "react-i18next";
 import { router } from "expo-router";
 import React, { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -11,7 +14,9 @@ import {
   View,
 } from "react-native";
 
+import { Button } from "@/components/kit";
 import settingsService, { PublicAppStatus } from "@/services/settings.service";
+import { color } from "@/theme/tokens";
 
 type GateState =
   | { type: "checking" }
@@ -74,6 +79,15 @@ const getPlatformUpdateTarget = (status: PublicAppStatus): PlatformUpdateTarget 
 export default function AppStatusGate({ children }: { children: ReactNode }) {
   const [gateState, setGateState] = useState<GateState>({ type: "checking" });
   const [softUpdate, setSoftUpdate] = useState<SoftUpdateInfo | null>(null);
+  const { t } = useTranslation();
+
+  // The native splash is normally hidden by app/splash.tsx, which never mounts
+  // while this gate blocks — hide it here or the rider is stuck on the logo.
+  useEffect(() => {
+    if (gateState.type === "maintenance" || gateState.type === "force-update") {
+      SplashScreen.hideAsync().catch(() => {});
+    }
+  }, [gateState.type]);
 
   const checkStatus = useCallback(async () => {
     setGateState({ type: "checking" });
@@ -131,10 +145,9 @@ export default function AppStatusGate({ children }: { children: ReactNode }) {
   }, [softUpdate]);
 
   const actionLabel = useMemo(() => {
-    if (gateState.type === "force-update") return "Update app";
-    if (gateState.type === "maintenance") return "Try again";
-    return "Continue";
-  }, [gateState.type]);
+    if (gateState.type === "force-update") return t("gate.update");
+    return t("gate.tryAgain");
+  }, [gateState.type, t]);
 
   if (gateState.type === "ready") {
     if (!softUpdate) {
@@ -185,9 +198,6 @@ export default function AppStatusGate({ children }: { children: ReactNode }) {
     );
   }
 
-  const title =
-    gateState.type === "force-update" ? "Update required" : "Maintenance";
-
   const handleAction = async () => {
     if (gateState.type === "force-update" && gateState.updateUrl) {
       await Linking.openURL(gateState.updateUrl);
@@ -202,23 +212,22 @@ export default function AppStatusGate({ children }: { children: ReactNode }) {
     checkStatus();
   };
 
+  const updating = gateState.type === "force-update";
   return (
-    <View className="flex-1 items-center justify-center bg-white px-8">
-      <View className="w-full max-w-[360px] items-center rounded-2xl border border-orange-100 bg-white p-6 shadow-sm">
-        <Text className="mb-3 text-center text-2xl font-bold text-gray-950">
-          {title}
+    <View style={{ flex: 1, backgroundColor: color.canvas }} className="items-center justify-center px-6">
+      <View className="w-full max-w-[380px] items-center gap-3">
+        <View className="w-20 h-20 rounded-full bg-brand items-center justify-center mb-2">
+          <Ionicons name={updating ? "rocket-outline" : "construct-outline"} size={36} color={color.ink} />
+        </View>
+        <Text className="text-2xl font-extrabold text-ink text-center">
+          {updating ? t("gate.updateTitle") : t("gate.maintenanceTitle")}
         </Text>
-        <Text className="mb-6 text-center text-base leading-6 text-gray-600">
-          {gateState.message}
+        <Text className="text-base text-ink-soft text-center mb-4">
+          {updating ? t("gate.updateBody") : t("gate.maintenanceBody")}
         </Text>
-        <TouchableOpacity
-          activeOpacity={0.85}
-          className="w-full rounded-full bg-orange-500 px-5 py-4"
-          onPress={handleAction}>
-          <Text className="text-center text-base font-semibold text-white">
-            {actionLabel}
-          </Text>
-        </TouchableOpacity>
+        <View className="self-stretch">
+          <Button title={actionLabel} icon={updating ? "download-outline" : "refresh"} onPress={handleAction} />
+        </View>
       </View>
     </View>
   );

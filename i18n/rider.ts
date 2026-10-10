@@ -5,6 +5,14 @@
  */
 export const riderStrings = {
   en: {
+    gate: {
+      maintenanceTitle: "We'll be right back",
+      maintenanceBody: "KhaaoNow is under maintenance. Orders will start again soon.",
+      updateTitle: "Update the app",
+      updateBody: "A new version is needed to keep delivering.",
+      update: "Update app",
+      tryAgain: "Try again",
+    },
     orderRequest: {
       newOrderRequest: "New order",
       earnings: "You earn",
@@ -298,6 +306,14 @@ export const riderStrings = {
     },
   },
   hi: {
+    gate: {
+      maintenanceTitle: "हम जल्द वापस आएंगे",
+      maintenanceBody: "KhaaoNow पर काम चल रहा है। ऑर्डर जल्द फिर शुरू होंगे।",
+      updateTitle: "ऐप अपडेट करें",
+      updateBody: "डिलीवरी जारी रखने के लिए नया वर्ज़न चाहिए।",
+      update: "ऐप अपडेट करें",
+      tryAgain: "फिर कोशिश करें",
+    },
     orderRequest: {
       newOrderRequest: "नया ऑर्डर",
       earnings: "आपकी कमाई",
@@ -590,6 +606,14 @@ export const riderStrings = {
     },
   },
   gu: {
+    gate: {
+      maintenanceTitle: "અમે જલ્દી પાછા આવીશું",
+      maintenanceBody: "KhaaoNow પર કામ ચાલુ છે. ઓર્ડર જલ્દી ફરી શરૂ થશે.",
+      updateTitle: "એપ અપડેટ કરો",
+      updateBody: "ડિલિવરી ચાલુ રાખવા નવું વર્ઝન જરૂરી છે.",
+      update: "એપ અપડેટ કરો",
+      tryAgain: "ફરી પ્રયાસ કરો",
+    },
     orderRequest: {
       newOrderRequest: "નવો ઓર્ડર",
       earnings: "તમારી કમાણી",
