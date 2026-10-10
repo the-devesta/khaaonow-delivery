@@ -25,7 +25,7 @@ const getCompletedPartnerRoute = (
   const status = normalizeStatus(partner.onboardingStatus);
   const approved = Boolean(partner.isApproved);
   const progress = Number(partner.onboardingProgress || 0);
-  const profileLooksComplete = Boolean(partner.name && partner.email);
+  const profileLooksComplete = Boolean(partner.name);
 
   if (status === OnboardingStatus.REJECTED) {
     return "/registration/account-rejected";

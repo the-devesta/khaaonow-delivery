@@ -384,7 +384,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     );
     const approved = partner?.isApproved || isApproved;
     const progress = partner?.onboardingProgress || get().onboardingProgress || 0;
-    const profileLooksComplete = Boolean(partner?.name && partner?.email);
+    const profileLooksComplete = Boolean(partner?.name);
 
     // Check for rejection
     if (status === OnboardingStatus.REJECTED) {
@@ -408,50 +408,20 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       }
     }
 
-    // Registration not complete - route to appropriate step
-    switch (status) {
-      case OnboardingStatus.PHONE_VERIFIED:
-        console.log(
-          "➡️ [Auth] Route: /registration/basic-details (phone verified)",
-        );
-        return "/registration/basic-details";
-
-      case OnboardingStatus.PERSONAL_INFO:
-        console.log(
-          "➡️ [Auth] Route: /registration/kyc-documents (personal info done)",
-        );
-        return "/registration/kyc-documents";
-
-      case OnboardingStatus.DOCUMENTS:
-        console.log(
-          "➡️ [Auth] Route: /registration/vehicle-details (documents done)",
-        );
-        return "/registration/vehicle-details";
-
-      case OnboardingStatus.VEHICLE_INFO:
-        console.log(
-          "➡️ [Auth] Route: /registration/profile-photo (vehicle info done)",
-        );
-        return "/registration/profile-photo";
-
-      case OnboardingStatus.PROFILE_PHOTO:
-        console.log(
-          "➡️ [Auth] Route: /registration/bank-details (profile photo done)",
-        );
-        return "/registration/bank-details";
-
-      case OnboardingStatus.BANK_DETAILS:
-        console.log(
-          "➡️ [Auth] Route: /registration/review-submit (bank details done)",
-        );
-        return "/registration/review-submit";
-
-      default:
-        // Fallback: if no status but authenticated, go to basic details
-        console.log(
-          "➡️ [Auth] Route: /registration/basic-details (default fallback)",
-        );
-        return "/registration/basic-details";
+    // Registration not complete — three steps: about → documents → payout.
+    const p: any = partner || {};
+    const motor = (p.vehicleType ?? "bike") !== "bicycle";
+    const docsComplete = Boolean(
+      p.aadhaarNumber &&
+        p.panNumber &&
+        p.aadhaarPhoto &&
+        p.panPhoto &&
+        p.profilePhoto &&
+        (!motor || (p.drivingLicensePhoto && p.rcPhoto)),
+    );
+    if (!p.name || status === OnboardingStatus.PHONE_VERIFIED || !status) {
+      return "/registration/about";
     }
+    return docsComplete ? "/registration/payout" : "/registration/documents";
   },
 }));
