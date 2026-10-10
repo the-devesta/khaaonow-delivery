@@ -90,7 +90,7 @@ interface LoginResponse {
 
 interface ProfileData {
   name: string;
-  email: string;
+  email?: string;
 }
 
 export type DeliveryPayoutPeriod = "today" | "week" | "month" | "all";
@@ -185,9 +185,9 @@ interface DocumentsData {
 }
 
 interface BankDetailsData {
-  bankAccountName: string;
-  bankAccountNumber: string;
-  bankIFSC: string;
+  bankAccountName?: string;
+  bankAccountNumber?: string;
+  bankIFSC?: string;
   bankAccountPhoto?: string;
   upiId?: string;
 }

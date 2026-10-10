@@ -3,8 +3,9 @@ import { DockProvider, useDock } from "@/context/DockContext";
 import "@/global.css";
 import { socketService } from "@/services/socket";
 import { useOrderStore } from "@/store/orders";
-import { Tabs } from "expo-router";
-import { useEffect } from "react";
+import * as Notifications from "expo-notifications";
+import { router, Tabs } from "expo-router";
+import { useEffect, useRef } from "react";
 import { AppState } from "react-native";
 import { useTranslation } from "react-i18next";
 
@@ -25,6 +26,23 @@ function TabsContent() {
 
     return () => appStateSub.remove();
   }, [initializeSocket]);
+
+  // Tapping a push: new-order alerts open Home (the request popup shows there);
+  // alerts about one of my orders open that order.
+  const lastTap = Notifications.useLastNotificationResponse();
+  const handledTap = useRef<string | null>(null);
+  useEffect(() => {
+    if (!lastTap || handledTap.current === lastTap.notification.request.identifier) return;
+    handledTap.current = lastTap.notification.request.identifier;
+    const data = (lastTap.notification.request.content.data ?? {}) as { orderId?: string; type?: string };
+    const store = useOrderStore.getState();
+    void (async () => {
+      await Promise.all([store.fetchAvailableOrders(), store.fetchAssignedOrders()]);
+      const mine = data.orderId && useOrderStore.getState().activeOrders.some((o) => o.id === data.orderId);
+      if (mine) router.push(`/orders/${data.orderId}`);
+      else router.navigate("/(tabs)");
+    })();
+  }, [lastTap]);
 
   return (
     <Tabs

@@ -1,225 +1,91 @@
+/** Login — phone number, code arrives on WhatsApp. */
+import { Button } from "@/components/kit";
+import { LanguageSwitchButton } from "@/components/LanguageSwitchButton";
 import { useWhatsAppAuth } from "@/hooks/use-whatsapp-auth";
-import { inputTextStyle } from "@/constants/form-styles";
-import { LoginSchema } from "@/utils/validations";
+import { color, TOUCH } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { Formik } from "formik";
-import { useEffect, useRef } from "react";
-import {
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Image,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StatusBar,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import React, { useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Image, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function LoginScreen() {
   const router = useRouter();
-  const { sendOtp, loading, error, clearError } = useWhatsAppAuth();
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { sendOtp, loading, error, clearError } = useWhatsAppAuth();
+  const [phone, setPhone] = useState("");
+  const [localError, setLocalError] = useState("");
 
-  // Animation values
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const valid = /^[6-9]\d{9}$/.test(phone);
 
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, [fadeAnim, slideAnim]);
+  const submit = async () => {
+    if (!valid) {
+      setLocalError(t("login.invalidPhone"));
+      return;
+    }
+    clearError();
+    setLocalError("");
+    try {
+      const ok = await sendOtp(phone);
+      if (ok) router.push({ pathname: "/auth/otp", params: { phoneNumber: phone } });
+      else setLocalError(error || t("login.sendFailed"));
+    } catch (err: any) {
+      setLocalError(err?.message || t("login.sendFailed"));
+    }
+  };
 
   return (
-    <View className="flex-1 bg-[#F3E0D9]">
-      <StatusBar barStyle="dark-content" backgroundColor="#F3E0D9" />
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 8 : 0}
-        className="flex-1">
-        <ScrollView
-          contentContainerStyle={{
-            paddingBottom: (insets.bottom || 20) + 24,
-            paddingTop: insets.top + 20,
-            flexGrow: 1,
-          }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}>
-          <Animated.View
-            style={{
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-              width: "100%",
-              flex: 1,
-              justifyContent: "center",
-            }}>
-            {/* Header Section */}
-            <View className="items-center mb-8 px-6">
-              <Text className="text-3xl font-extrabold text-[#1A1A1A] mb-2 text-center">
-                Hello Again! 👋
-              </Text>
-              <Text className="text-base text-gray-500 font-medium text-center">
-                Welcome back to KhaaoNow
-              </Text>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: color.brand }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 8 }}>
+        <View className="flex-row justify-end px-4">
+          <LanguageSwitchButton variant="light" />
+        </View>
 
-              <View className="mt-8 mb-4 rounded-2xl">
-                <Image
-                  className="rounded-2xl"
-                  source={require("../../assets/images/login-illustration.png")}
-                  style={{ width: 200, height: 200, resizeMode: "contain" }}
-                />
-              </View>
-            </View>
+        <View className="items-center px-6 pt-10 pb-8 gap-3">
+          <Image source={require("@/assets/images/DeliveryKhaaoNow.png")} style={{ width: 84, height: 84, borderRadius: 22 }} />
+          <Text className="text-3xl font-extrabold text-ink text-center">{t("login.title")}</Text>
+          <Text className="text-base text-ink-soft text-center">{t("login.subtitle")}</Text>
+        </View>
 
-            {/* Login Card */}
-            <View
-              className="bg-white mx-6 rounded-[32px] p-6">
-              <View className="items-center mb-6">
-                <Text className="text-xl font-bold text-[#1A1A1A]">Login</Text>
-                <View className="h-1 w-8 bg-[#F59E0B] rounded-full mt-2" />
-              </View>
+        <View style={{ paddingBottom: insets.bottom + 16 }} className="flex-1 bg-canvas rounded-t-[32px] px-5 pt-7 gap-4">
+          <Text className="text-lg font-bold text-ink">{t("login.enterPhone")}</Text>
+          <View
+            style={{ minHeight: TOUCH + 8, borderColor: localError ? color.danger : color.ink }}
+            className="flex-row items-center bg-surface rounded-2xl border-2 px-4">
+            <Text className="text-lg font-bold text-ink mr-2">+91</Text>
+            <View className="w-px h-6 bg-line mr-3" />
+            <TextInput
+              value={phone}
+              onChangeText={(v) => {
+                setPhone(v.replace(/\D/g, "").slice(0, 10));
+                setLocalError("");
+              }}
+              keyboardType="phone-pad"
+              textContentType="telephoneNumber"
+              autoComplete="tel"
+              placeholder="98765 43210"
+              placeholderTextColor={color.faint}
+              maxLength={10}
+              accessibilityLabel={t("login.enterPhone")}
+              style={{ flex: 1, fontSize: 20, fontWeight: "700", color: color.ink, letterSpacing: 1 }}
+              onSubmitEditing={submit}
+              returnKeyType="done"
+            />
+          </View>
+          {localError ? <Text className="text-sm text-danger">{localError}</Text> : null}
 
-              <Formik
-                initialValues={{ phoneNumber: "" }}
-                validationSchema={LoginSchema}
-                onSubmit={async (values) => {
-                  try {
-                    clearError();
-                    const success = await sendOtp(values.phoneNumber);
-                    if (success) {
-                      router.push({
-                        pathname: "/auth/otp",
-                        params: { phoneNumber: values.phoneNumber },
-                      });
-                    } else if (error) {
-                      Alert.alert("Error", error);
-                    }
-                  } catch (err: any) {
-                    Alert.alert("Error", err.message || "Failed to send OTP.");
-                  }
-                }}>
-                {({
-                  handleChange,
-                  handleBlur,
-                  handleSubmit,
-                  values,
-                  errors,
-                  touched,
-                }) => (
-                  <View>
-                    {/* Phone Input */}
-                    <View className="mb-6">
-                      <Text className="text-xs font-bold text-gray-400 mb-2 ml-1 uppercase tracking-wider">
-                        Phone Number
-                      </Text>
-                      <View
-                        className="flex-row items-center bg-gray-50 rounded-2xl border border-gray-100 overflow-hidden h-14">
-                        <View className="px-4 border-r border-gray-200 h-full justify-center bg-white">
-                          <Text
-                            className="font-bold text-[#1A1A1A]"
-                            style={inputTextStyle.phonePrefix}>
-                            +91
-                          </Text>
-                        </View>
-                        <TextInput
-                          placeholder="Enter your number"
-                          keyboardType="number-pad"
-                          inputMode="numeric"
-                          returnKeyType="done"
-                          maxLength={10}
-                          value={values.phoneNumber}
-                          onChangeText={(text) => {
-                            // Only allow numeric characters and max 10 digits
-                            const numericText = text
-                              .replace(/[^0-9]/g, "")
-                              .slice(0, 10);
-                            handleChange("phoneNumber")(numericText);
-                          }}
-                          onBlur={handleBlur("phoneNumber")}
-                          placeholderTextColor="#9CA3AF"
-                          className="flex-1 px-4 text-[#1A1A1A] font-semibold"
-                          style={inputTextStyle.phone}
-                          selectionColor="#F59E0B"
-                        />
-                        <View className="pr-4">
-                          <Ionicons
-                            name="call-outline"
-                            size={20}
-                            color="#9CA3AF"
-                          />
-                        </View>
-                      </View>
-                      {touched.phoneNumber && errors.phoneNumber && (
-                        <View className="flex-row items-center mt-2 ml-1">
-                          <Ionicons
-                            name="alert-circle"
-                            size={14}
-                            color="#EF4444"
-                          />
-                          <Text className="text-red-500 text-xs ml-1.5 font-medium">
-                            {errors.phoneNumber}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
+          <Button title={t("login.getCode")} icon="logo-whatsapp" loading={loading} disabled={!valid} onPress={submit} />
 
-                    {/* WhatsApp Notice - Simplified */}
-                    <View className="flex-row items-center justify-center mb-6 opacity-80">
-                      <Ionicons
-                        name="logo-whatsapp"
-                        size={14}
-                        color="#16A34A"
-                      />
-                      <Text className="text-xs text-gray-400 ml-2 font-medium">
-                        OTP will be sent via WhatsApp
-                      </Text>
-                    </View>
-
-                    <TouchableOpacity
-                      onPress={() => handleSubmit()}
-                      disabled={loading}
-                      activeOpacity={0.85}
-                      className="self-center bg-[#FF6A00] rounded-[28px] px-12 h-14 min-w-[180px] items-center justify-center"
-                      style={{ opacity: loading ? 0.7 : 1 }}>
-                      {loading ? (
-                        <ActivityIndicator color="#FFFFFF" />
-                      ) : (
-                        <Text className="text-white text-lg font-bold">
-                          Send OTP
-                        </Text>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                )}
-              </Formik>
-            </View>
-
-            {/* Footer */}
-            <View className="mt-8 items-center">
-              <Text className="text-xs text-gray-400 text-center font-medium px-10 leading-5">
-                By continuing you agree to our{" "}
-                <Text className="text-[#F59E0B] font-bold">Terms</Text> &{" "}
-                <Text className="text-[#F59E0B] font-bold">Privacy Policy</Text>
-              </Text>
-            </View>
-          </Animated.View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </View>
+          <View className="flex-row items-center gap-2 justify-center">
+            <Ionicons name="lock-closed-outline" size={14} color={color.muted} />
+            <Text className="text-xs text-muted">{t("login.whatsappNote")}</Text>
+          </View>
+        </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }

@@ -75,13 +75,12 @@ export const usePartnerStore = create<PartnerState>()(
           
           const response = await ApiService.toggleOnlineStatus(newStatus);
           
-          if (response.success) {
-            set({ isOnline: newStatus });
-          } else {
-            console.error('Failed to toggle online status:', response.message);
+          if (!response.success) {
+            // Let the caller tell the rider; a silent failure looked like
+            // the button did nothing.
+            throw new Error(response.message || 'Could not change your status');
           }
-        } catch (error) {
-          console.error('Toggle online error:', error);
+          set({ isOnline: newStatus });
         } finally {
           set({ loading: false });
         }

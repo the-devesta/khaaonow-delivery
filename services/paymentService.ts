@@ -96,6 +96,24 @@ export async function checkPaymentStatus(
   return res.data;
 }
 
+/**
+ * Mark an order paid via admin's own personal UPI QR — a manual, out-of-band
+ * channel for cases where the customer paid directly to a QR admin gave the
+ * rider, not through the app's own Razorpay flow. Photo proof is mandatory.
+ */
+export async function markAdminQrPaid(
+  orderId: string,
+  proofPhotoUrl: string,
+): Promise<{ paymentStatus: string }> {
+  const res = await ApiService.post<
+    PaymentApiResponse<{ paymentStatus: string }>
+  >(`/delivery-partners/orders/${orderId}/mark-admin-qr-paid`, {
+    proofPhotoUrl,
+  });
+  if (!res.success) throw new Error(res.message || "Failed to mark order paid");
+  return res.data;
+}
+
 /** Namespace object for convenience imports: import { paymentService } from ... */
 export const paymentService = {
   sendCodOtp,
@@ -103,4 +121,5 @@ export const paymentService = {
   generatePaymentLink,
   generatePaymentQR,
   checkPaymentStatus,
+  markAdminQrPaid,
 };

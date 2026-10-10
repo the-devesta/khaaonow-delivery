@@ -27,12 +27,21 @@ export async function openPhoneDialer(phone?: string | null) {
     return false;
   }
 
-  const canOpen = await Linking.canOpenURL(url);
-  if (!canOpen) {
-    Alert.alert("Call unavailable", "This device cannot place phone calls.");
+  // Deliberately skip Linking.canOpenURL() here. On Android 11+, querying a
+  // tel: URL requires the app to declare package-visibility <queries> for
+  // it — without that (or with some OEM dialers), canOpenURL() returns a
+  // false negative even though a real dialer exists, which is exactly the
+  // "sometimes doesn't work" symptom this fixes. Attempt the open directly
+  // and only report failure if it genuinely throws.
+  try {
+    await Linking.openURL(url);
+    return true;
+  } catch (error) {
+    console.warn("[openPhoneDialer] Linking.openURL failed:", error);
+    Alert.alert(
+      "Call unavailable",
+      "Could not open the dialer. Long-press the number to copy it and dial manually.",
+    );
     return false;
   }
-
-  await Linking.openURL(url);
-  return true;
 }

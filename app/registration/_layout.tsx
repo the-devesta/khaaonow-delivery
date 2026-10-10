@@ -2,6 +2,7 @@ import { ApiService } from "@/services/api";
 import { OnboardingStatus, useAuthStore } from "@/store/auth";
 import { Stack, usePathname, useRouter } from "expo-router";
 import { useEffect, useRef } from "react";
+import { signupEdit } from "@/utils/signupEdit";
 
 const normalizeStatus = (status?: string | null) =>
   status ? status.toLowerCase() : null;
@@ -21,11 +22,13 @@ const getCompletedPartnerRoute = (
   partner: ReturnType<typeof getPartnerFromProfileResponse>,
 ) => {
   if (!partner) return null;
+  // The rider chose to edit their details from the review screen.
+  if (signupEdit.active()) return null;
 
   const status = normalizeStatus(partner.onboardingStatus);
   const approved = Boolean(partner.isApproved);
   const progress = Number(partner.onboardingProgress || 0);
-  const profileLooksComplete = Boolean(partner.name && partner.email);
+  const profileLooksComplete = Boolean(partner.name);
 
   if (status === OnboardingStatus.REJECTED) {
     return "/registration/account-rejected";

@@ -202,13 +202,21 @@ interface OrderState {
   restorePersistedState: () => void;
 }
 
+/** Online = paid through the app (Razorpay/card/UPI) or already marked paid. */
+const paymentTypeOf = (order: any): "cash" | "online" => {
+  const method = String(order?.paymentMethod || "").toLowerCase();
+  const status = String(order?.paymentStatus || "").toLowerCase();
+  if (["card", "razorpay", "online", "upi"].includes(method)) return "online";
+  if (status === "paid" || status === "completed") return "online";
+  return "cash";
+};
+
 // ── Helper: transform a raw backend order into our Order shape ───────────────
 function transformSocketOrder(order: any): Order {
   const earnings =
+    order.estimatedDeliveryFee ??
     order.earnings ??
     order.deliveryEarnings ??
-    order.estimatedDeliveryFee ??
-    order.deliveryFee ??
     0;
 
   const _pickupLoc =
@@ -272,9 +280,8 @@ function transformSocketOrder(order: any): Order {
         name: item.food?.name || item.name,
         quantity: item.quantity,
       })) || [],
-    paymentType: (order.paymentMethod === "card" ? "online" : "cash") as
-      | "cash"
-      | "online",
+    paymentType: paymentTypeOf(order),
+    paymentStatus: order.paymentStatus,
     status: order.status,
     preparationTime: order.preparationTime,
     acceptanceTimeoutSeconds: order.acceptanceTimeoutSeconds,
@@ -787,6 +794,11 @@ export const useOrderStore = create<OrderState>()(
                   m.order.id === orderId ? { ...m, stillAvailable: false } : m,
                 ),
               });
+            } else {
+              // Any other refusal (offline, too many orders, out of area):
+              // close the popup and keep the order in the missed list so the
+              // rider can retry once fixed — never leave a dead popup up.
+              get().rejectOrder(orderId);
             }
             Alert.alert("Order Unavailable", errorMsg);
           }
@@ -815,6 +827,7 @@ export const useOrderStore = create<OrderState>()(
               "This order has expired or been assigned to another delivery partner.",
             );
           } else {
+            get().rejectOrder(orderId);
             Alert.alert("Error", errorMsg);
           }
         } finally {
@@ -872,8 +885,8 @@ export const useOrderStore = create<OrderState>()(
           return;
         }
 
-        // Set as pending and try to accept
-        set({ pendingOrder: missed.order });
+        // Accept directly — setting it as pending would ring the new-order
+        // popup while the request runs.
         await get().acceptOrder(orderId);
       },
 
@@ -1271,10 +1284,9 @@ export const useOrderStore = create<OrderState>()(
               distance: order.deliveryInfo?.distanceKm || order.distance || 0,
               estimatedTime: "30 min",
               earnings:
+                order.estimatedDeliveryFee ??
                 order.earnings ??
                 order.deliveryEarnings ??
-                order.estimatedDeliveryFee ??
-                order.deliveryFee ??
                 0,
               totalAmount: order.totalAmount,
               items:
@@ -1282,10 +1294,8 @@ export const useOrderStore = create<OrderState>()(
                   name: item.food?.name || item.name || "Item",
                   quantity: item.quantity,
                 })) || [],
-              paymentType:
-                order.paymentMethod === "card"
-                  ? ("online" as const)
-                  : ("cash" as const),
+              paymentType: paymentTypeOf(order),
+              paymentStatus: order.paymentStatus,
               status: order.status || "delivered",
               cancellationReason: order.cancellationReason || null,
               autoCancelled: order.autoCancelled || false,

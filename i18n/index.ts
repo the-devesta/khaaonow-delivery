@@ -1,3 +1,4 @@
+import { riderStrings } from "./rider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
@@ -37,6 +38,18 @@ const resources = {
         routeSequence: "Route Sequence",
         stops: "stops",
         max: "Max",
+      },
+      auth: {
+        helloAgain: "Hello Again! 👋",
+        welcomeBack: "Welcome back to KhaaoNow",
+        login: "Login",
+        phoneNumber: "Phone Number",
+        enterYourNumber: "Enter your number",
+        otpWhatsappNotice: "OTP will be sent via WhatsApp",
+        sendOtp: "Send OTP",
+        termsNotice: "By continuing you agree to our",
+        terms: "Terms",
+        privacyPolicy: "Privacy Policy",
       },
       payment: {
         collectPayment: "Collect Payment",
@@ -351,6 +364,18 @@ const resources = {
         stops: "स्टॉप",
         max: "अधिकतम",
       },
+      auth: {
+        helloAgain: "फिर से नमस्ते! 👋",
+        welcomeBack: "KhaaoNow में वापसी पर स्वागत है",
+        login: "लॉगिन",
+        phoneNumber: "फ़ोन नंबर",
+        enterYourNumber: "अपना नंबर दर्ज करें",
+        otpWhatsappNotice: "OTP WhatsApp पर भेजा जाएगा",
+        sendOtp: "OTP भेजें",
+        termsNotice: "जारी रखने पर आप हमारी",
+        terms: "शर्तों",
+        privacyPolicy: "प्राइवेसी पॉलिसी",
+      },
       payment: {
         collectPayment: "पेमेंट लें",
         deliveryVerification: "डिलीवरी सत्यापन",
@@ -664,6 +689,18 @@ const resources = {
         stops: "સ્ટોપ",
         max: "મહત્તમ",
       },
+      auth: {
+        helloAgain: "ફરી નમસ્તે! 👋",
+        welcomeBack: "KhaaoNow માં ફરી સ્વાગત છે",
+        login: "લોગિન",
+        phoneNumber: "ફોન નંબર",
+        enterYourNumber: "તમારો નંબર દાખલ કરો",
+        otpWhatsappNotice: "OTP WhatsApp પર મોકલવામાં આવશે",
+        sendOtp: "OTP મોકલો",
+        termsNotice: "ચાલુ રાખવાથી તમે અમારી",
+        terms: "શરતો",
+        privacyPolicy: "ગોપનીયતા નીતિ",
+      },
       payment: {
         collectPayment: "પેમેન્ટ લો",
         deliveryVerification: "ડિલિવરી ચકાસણી",
@@ -954,9 +991,34 @@ const resources = {
   },
 } as const;
 
+// Deep-merge the redesigned screens' strings (i18n/rider.ts) into each
+// language without touching the legacy namespaces' existing keys.
+const mergeDeep = (base: any, extra: any): any => {
+  const out = { ...base };
+  for (const [key, value] of Object.entries(extra)) {
+    out[key] =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? mergeDeep(base?.[key] ?? {}, value)
+        : value;
+  }
+  return out;
+};
+
+const mergedResources = Object.fromEntries(
+  Object.entries(resources).map(([lng, bundle]) => [
+    lng,
+    {
+      translation: mergeDeep(
+        (bundle as any).translation,
+        (riderStrings as any)[lng] ?? riderStrings.en,
+      ),
+    },
+  ]),
+);
+
 i18n.use(initReactI18next).init({
   compatibilityJSON: "v4",
-  resources,
+  resources: mergedResources,
   lng: "en",
   fallbackLng: "en",
   interpolation: {

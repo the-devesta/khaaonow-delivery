@@ -1,281 +1,154 @@
-import PrimaryButton from "@/components/ui/primary-button";
+/** OTP — 6 boxes, verifies automatically on the 6th digit. */
+import { Button, IconButton } from "@/components/kit";
 import { useWhatsAppAuth } from "@/hooks/use-whatsapp-auth";
 import { useAuthStore } from "@/store/auth";
-import { goBackOrReplace } from "@/utils/navigation";
-import { Ionicons } from "@expo/vector-icons";
+import { color } from "@/theme/tokens";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
-import {
-  Alert,
-  Animated,
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { KeyboardAvoidingView, Platform, Pressable, Text, TextInput, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-interface OtpBoxProps {
-  digit: string;
-  isFocused: boolean;
-}
-
-function OtpBox({ digit, isFocused }: OtpBoxProps) {
-  const [scale] = useState(() => new Animated.Value(1));
-
-  useEffect(() => {
-    if (digit) {
-      Animated.sequence([
-        Animated.timing(scale, {
-          toValue: 1.15,
-          duration: 100,
-          useNativeDriver: true,
-        }),
-        Animated.spring(scale, {
-          toValue: 1,
-          friction: 4,
-          useNativeDriver: true,
-        }),
-      ]).start();
-    }
-  }, [digit, scale]);
-
-  return (
-    <Animated.View
-      className="w-12 h-14 md:w-14 md:h-16 rounded-2xl border-2 items-center justify-center"
-      style={{
-        backgroundColor: isFocused ? "#FFF" : "#F8F8F8",
-        borderColor: isFocused ? "#FF6A00" : digit ? "#FF6A00" : "#E5E5E5",
-        transform: [{ scale }],
-      }}
-    >
-      <Text className="text-2xl font-bold text-[#1A1A1A]">{digit || ""}</Text>
-    </Animated.View>
-  );
-}
+const LENGTH = 6;
 
 export default function OtpScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams();
-  const phoneNumber = params.phoneNumber as string;
-
+  const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
+  const { phoneNumber } = useLocalSearchParams<{ phoneNumber: string }>();
   const { sendOtp, verifyOtp, loading, error, clearError } = useWhatsAppAuth();
   const { setAuthenticated, fetchProfile } = useAuthStore();
 
-  const [resendLoading, setResendLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(30);
-
-  // A single string state holds the entire OTP
   const [otp, setOtp] = useState("");
+  const [message, setMessage] = useState("");
+  const [timer, setTimer] = useState(30);
+  const [resending, setResending] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const [isInputFocused, setIsInputFocused] = useState(true);
+  const verifyingRef = useRef(false);
 
   useEffect(() => {
-    if (resendTimer > 0) {
-      const timer = setTimeout(() => setResendTimer(resendTimer - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendTimer]);
+    if (timer <= 0) return;
+    const id = setTimeout(() => setTimer((s) => s - 1), 1000);
+    return () => clearTimeout(id);
+  }, [timer]);
 
-  const handleVerifyOtp = async () => {
-    if (otp.length !== 6) return;
-
+  const verify = async (code: string) => {
+    if (code.length !== LENGTH || verifyingRef.current) return;
+    verifyingRef.current = true;
+    clearError();
+    setMessage("");
     try {
-      clearError();
-      console.log("🔐 [OTP] Verifying OTP...");
-
-      // Verify OTP with WhatsApp backend
-      const response = await verifyOtp(phoneNumber, otp);
-
+      const response = await verifyOtp(phoneNumber, code);
       if (response.success && response.data) {
-        console.log("✅ [OTP] Verification successful:", {
-          deliveryPartnerId: response.data.deliveryPartnerId,
-          onboardingStatus: response.data.onboardingStatus,
-          onboardingProgress: response.data.onboardingProgress,
-          isApproved: response.data.isApproved,
-          profileComplete: response.data.profileComplete,
-        });
-
-        const formattedPhone = `+91${phoneNumber}`;
-
-        // Store full authentication data including onboarding status
         await setAuthenticated(
           true,
           response.data.deliveryPartnerId,
-          formattedPhone,
+          `+91${phoneNumber}`,
           response.data.token,
           response.data.onboardingStatus,
           response.data.onboardingProgress,
           response.data.isApproved || false,
         );
-
-        // Refresh the full partner profile before routing. The OTP response can
-        // be stale/minimal for an already completed account.
+        // OTP response can be minimal for existing accounts; route on the full profile.
         await fetchProfile();
-
-        // Get the correct navigation route based on the latest profile state
-        const route = useAuthStore.getState().getNavigationRoute();
-        console.log("🧭 [OTP] Navigating to:", route);
-
-        router.replace(route as any);
+        router.replace(useAuthStore.getState().getNavigationRoute() as any);
       } else {
-        Alert.alert(
-          "Verification Failed",
-          response.message || "Failed to verify OTP. Please try again.",
-        );
+        setMessage(response.message || t("login.wrongCode"));
+        setOtp("");
       }
     } catch (err: any) {
-      console.error("❌ [OTP] Verification error:", err);
-      Alert.alert("Error", err.message || "Invalid OTP. Please try again.");
+      setMessage(err?.message || t("login.wrongCode"));
+      setOtp("");
+    } finally {
+      verifyingRef.current = false;
     }
   };
 
-  const handleResendOtp = async () => {
-    setResendLoading(true);
+  const resend = async () => {
+    setResending(true);
+    clearError();
+    setMessage("");
     try {
-      clearError();
-      console.log("📤 [OTP] Resending OTP...");
-      const success = await sendOtp(phoneNumber);
-
-      if (success) {
-        setResendTimer(30);
+      const ok = await sendOtp(phoneNumber);
+      if (ok) {
+        setTimer(30);
         setOtp("");
         inputRef.current?.focus();
-        Alert.alert("Success", "OTP sent successfully!");
-      } else if (error) {
-        Alert.alert("Error", error);
+        setMessage(t("login.codeResent"));
+      } else {
+        setMessage(error || t("login.sendFailed"));
       }
     } catch (err: any) {
-      console.error("❌ [OTP] Resend error:", err);
-      Alert.alert("Error", err.message || "Failed to resend OTP.");
+      setMessage(err?.message || t("login.sendFailed"));
     } finally {
-      setResendLoading(false);
+      setResending(false);
     }
   };
 
-  const handlePressOtpContainer = () => {
-    inputRef.current?.focus();
-  };
-
-  // Convert the OTP string into an array of 6 elements for rendering
-  const otpArray = otp.split("");
-  const codeLength = new Array(6).fill("");
-
   return (
-    <SafeAreaView className="flex-1 bg-white">
-      <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        className="flex-1"
-      >
-        <ScrollView
-          contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <View className="flex-1 px-6 pt-12">
-            {/* Back Button */}
-            <TouchableOpacity
-              onPress={() => goBackOrReplace(router, "/auth/login")}
-              className="w-12 h-12 bg-[#F8F8F8] rounded-full items-center justify-center mb-8"
-              activeOpacity={0.7}
-            >
-              <Ionicons name="arrow-back" size={24} color="#1A1A1A" />
-            </TouchableOpacity>
+    <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: color.canvas }}>
+      <View style={{ paddingTop: insets.top + 6 }} className="px-2">
+        <IconButton icon="chevron-back" label={t("common.back")} onPress={() => router.back()} />
+      </View>
+      <View className="flex-1 px-5 pt-4 gap-5">
+        <View className="gap-2">
+          <Text className="text-3xl font-extrabold text-ink">{t("login.enterCode")}</Text>
+          <Text className="text-base text-ink-soft">{t("login.sentTo", { phone: `+91 ${phoneNumber}` })}</Text>
+        </View>
 
-            {/* Header */}
-            <View className="mb-8">
-              <Text className="text-3xl font-bold text-[#1A1A1A] mb-3">
-                Verify OTP
-              </Text>
-              <Text className="text-base text-[#7A7A7A]">
-                Enter the 6-digit code sent to{"\n"}
-                <Text className="font-semibold text-[#1A1A1A]">
-                  +91 {phoneNumber}
-                </Text>
-              </Text>
-            </View>
-
-            {/* OTP Input Container */}
-            <TouchableOpacity
-              activeOpacity={1}
-              onPress={handlePressOtpContainer}
-              className="flex-row justify-between mb-8"
-            >
-              {codeLength.map((_, index) => {
-                const digit = otpArray[index] || "";
-                // The active box is the one right after the current input length
-                // Unless the input is full (length === 6), then no box is heavily highlighted
-                const isCurrentIndex = otp.length === index;
-                const isFocused = isInputFocused && isCurrentIndex;
-
-                return (
-                  <OtpBox key={index} digit={digit} isFocused={isFocused} />
-                );
-              })}
-
-              {/* HIDDEN INVISIBLE TEXT INPUT TO CAPTURE ALL TYPING/PASTING */}
-              <TextInput
-                ref={inputRef}
-                value={otp}
-                onChangeText={(text) => {
-                  // Keep only digits and slice to max length
-                  const cleanText = text.replace(/[^0-9]/g, "");
-                  setOtp(cleanText.slice(0, 6));
-                }}
-                maxLength={6}
-                keyboardType="number-pad"
-                returnKeyType="done"
-                textContentType="oneTimeCode"
-                autoComplete="sms-otp"
-                autoFocus={true}
-                onFocus={() => setIsInputFocused(true)}
-                onBlur={() => setIsInputFocused(false)}
+        <Pressable onPress={() => inputRef.current?.focus()} className="flex-row justify-between">
+          {Array.from({ length: LENGTH }).map((_, i) => {
+            const filled = i < otp.length;
+            const active = i === otp.length;
+            return (
+              <View
+                key={i}
                 style={{
-                  position: "absolute",
-                  width: 1,
-                  height: 1,
-                  opacity: 0,
-                }}
-              />
-            </TouchableOpacity>
+                  width: 48,
+                  height: 60,
+                  borderRadius: 14,
+                  borderWidth: 2,
+                  borderColor: active ? color.ink : filled ? color.inkSoft : color.line,
+                  backgroundColor: color.surface,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}>
+                <Text className="text-2xl font-extrabold text-ink">{otp[i] ?? ""}</Text>
+              </View>
+            );
+          })}
+        </Pressable>
+        <TextInput
+          ref={inputRef}
+          value={otp}
+          onChangeText={(v) => {
+            const code = v.replace(/\D/g, "").slice(0, LENGTH);
+            setOtp(code);
+            if (code.length === LENGTH) void verify(code);
+          }}
+          keyboardType="number-pad"
+          textContentType="oneTimeCode"
+          autoComplete="sms-otp"
+          maxLength={LENGTH}
+          autoFocus
+          accessibilityLabel={t("login.enterCode")}
+          style={{ position: "absolute", opacity: 0, width: 1, height: 1 }}
+        />
 
-            {/* Resend OTP */}
-            <View className="flex-row items-center justify-center mb-8">
-              {resendTimer > 0 ? (
-                <Text className="text-sm text-[#7A7A7A]">
-                  Resend OTP in{" "}
-                  <Text className="font-semibold text-[#FF6A00]">
-                    {resendTimer}s
-                  </Text>
-                </Text>
-              ) : resendLoading ? (
-                <Text className="text-sm text-[#7A7A7A]">Sending...</Text>
-              ) : (
-                <TouchableOpacity
-                  onPress={handleResendOtp}
-                  activeOpacity={0.7}
-                  disabled={resendLoading}
-                >
-                  <Text className="text-sm font-semibold text-[#FF6A00]">
-                    Resend OTP
-                  </Text>
-                </TouchableOpacity>
-              )}
-            </View>
+        {message ? <Text className="text-sm text-center text-ink-soft">{message}</Text> : null}
 
-            {/* Verify Button */}
-            <PrimaryButton
-              title="Verify & Continue"
-              onPress={handleVerifyOtp}
-              loading={loading}
-              disabled={otp.length !== 6}
-            />
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        <Button title={t("login.verify")} icon="checkmark" loading={loading} disabled={otp.length !== LENGTH} onPress={() => verify(otp)} />
+
+        <View className="items-center">
+          {timer > 0 ? (
+            <Text className="text-sm text-muted">{t("login.resendIn", { seconds: timer })}</Text>
+          ) : (
+            <Pressable onPress={resend} disabled={resending} hitSlop={10}>
+              <Text className="text-sm font-bold text-info">{resending ? t("login.sending") : t("login.resend")}</Text>
+            </Pressable>
+          )}
+        </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }

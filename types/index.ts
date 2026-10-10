@@ -19,7 +19,7 @@ export interface DeliveryPartner {
   panPhoto?: string;
   
   // Vehicle Information
-  vehicleType?: 'bike' | 'scooter' | 'car';
+  vehicleType?: 'bike' | 'scooter' | 'car' | 'bicycle';
   vehicleNumber?: string;
   rcPhoto?: string;
   drivingLicenseNumber?: string;
@@ -31,6 +31,7 @@ export interface DeliveryPartner {
   bankAccountNumber?: string;
   bankIFSC?: string;
   bankAccountPhoto?: string;
+  upiId?: string;
   
   // Work Information
   rating: number;

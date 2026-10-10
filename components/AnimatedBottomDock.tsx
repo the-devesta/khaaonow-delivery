@@ -1,154 +1,24 @@
+/**
+ * Bottom tab bar — four big, always-labelled tabs. Slides away when a screen
+ * hides the dock (see DockContext). Trips shows a count while orders are live.
+ */
+import { useOrderStore } from "@/store/orders";
+import { color } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  IOSGlassSurface,
-  supportsLiquidGlass,
-} from "@/components/ui/ios-liquid-glass";
+import * as Haptics from "expo-haptics";
 import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
-import { JSX, useEffect, useRef } from "react";
-import { Animated, Text, TouchableOpacity, View } from "react-native";
+import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Animated, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const PRIMARY = "#F59E0B";
-const CIRCLE_SIZE = 56;
-const ACTIVE_WIDTH = 114;
+type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
-const TAB_META = {
-  index: {
-    labelKey: "common.home",
-    icon: (focused: boolean, color: string) => (
-      <Ionicons
-        name={focused ? "home" : "home-outline"}
-        size={24}
-        color={color}
-      />
-    ),
-  },
-  orders: {
-    labelKey: "common.orders",
-    icon: (focused: boolean, color: string) => (
-      <Ionicons
-        name={focused ? "list" : "list-outline"}
-        size={24}
-        color={color}
-      />
-    ),
-  },
-  earnings: {
-    labelKey: "common.earnings",
-    icon: (focused: boolean, color: string) => (
-      <Ionicons
-        name={focused ? "wallet" : "wallet-outline"}
-        size={24}
-        color={color}
-      />
-    ),
-  },
-  profile: {
-    labelKey: "common.profile",
-    icon: (focused: boolean, color: string) => (
-      <Ionicons
-        name={focused ? "person" : "person-outline"}
-        size={24}
-        color={color}
-      />
-    ),
-  },
-} satisfies Record<
-  string,
-  { labelKey: string; icon: (focused: boolean, color: string) => JSX.Element }
->;
-
-type TabKey = keyof typeof TAB_META;
-
-type TabDockItemProps = {
-  label: string;
-  isFocused: boolean;
-  onPress: () => void;
-  onLongPress: () => void;
-  renderIcon: (focused: boolean, color: string) => JSX.Element;
-};
-
-function TabDockItem({
-  label,
-  isFocused,
-  onPress,
-  onLongPress,
-  renderIcon,
-}: TabDockItemProps) {
-  const progress = useRef(new Animated.Value(isFocused ? 1 : 0)).current;
-
-  useEffect(() => {
-    Animated.spring(progress, {
-      toValue: isFocused ? 1 : 0,
-      stiffness: 180,
-      damping: 18,
-      mass: 0.9,
-      useNativeDriver: false,
-    }).start();
-  }, [isFocused, progress]);
-
-  const scale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0.94, 1],
-  });
-
-  const width = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [CIRCLE_SIZE, ACTIVE_WIDTH],
-  });
-
-  return (
-    <TouchableOpacity
-      activeOpacity={0.9}
-      onPress={onPress}
-      onLongPress={onLongPress}
-      style={{ marginHorizontal: 0 }}
-    >
-      <Animated.View
-        style={[
-          {
-            width,
-            height: CIRCLE_SIZE,
-            borderRadius: CIRCLE_SIZE,
-            backgroundColor: isFocused
-              ? supportsLiquidGlass
-                ? "rgba(245,158,11,0.92)"
-                : PRIMARY
-              : supportsLiquidGlass
-                ? "rgba(255,255,255,0.28)"
-                : "#ffffff",
-            borderWidth: supportsLiquidGlass ? 1 : 0,
-            borderColor: supportsLiquidGlass
-              ? "rgba(255,255,255,0.55)"
-              : "transparent",
-            transform: [{ scale }],
-            justifyContent: "center",
-            alignItems: "center",
-            flexDirection: "row",
-          },
-        ]}
-      >
-        {renderIcon(isFocused, isFocused ? "#ffffff" : PRIMARY)}
-        {isFocused && (
-          <Text
-            style={{
-              marginLeft: 8,
-              color: "#ffffff",
-              fontWeight: "600",
-              fontSize: 13,
-            }}
-          >
-            {label}
-          </Text>
-        )}
-      </Animated.View>
-    </TouchableOpacity>
-  );
-}
-
-type AnimatedBottomDockProps = BottomTabBarProps & {
-  isVisible: boolean;
+const TABS: Record<string, { labelKey: string; icon: IconName; iconActive: IconName }> = {
+  index: { labelKey: "common.home", icon: "home-outline", iconActive: "home" },
+  orders: { labelKey: "trips.title", icon: "bicycle-outline", iconActive: "bicycle" },
+  earnings: { labelKey: "earn.title", icon: "wallet-outline", iconActive: "wallet" },
+  profile: { labelKey: "me.title", icon: "person-outline", iconActive: "person" },
 };
 
 export default function AnimatedBottomDock({
@@ -156,119 +26,80 @@ export default function AnimatedBottomDock({
   descriptors,
   navigation,
   isVisible,
-}: AnimatedBottomDockProps) {
+}: BottomTabBarProps & { isVisible: boolean }) {
   const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const liveCount = useOrderStore((s) => s.activeOrders.length);
   const translateY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    Animated.spring(translateY, {
-      toValue: isVisible ? 0 : 150,
-      useNativeDriver: true,
-      stiffness: 180,
-      damping: 20,
-      mass: 0.8,
-    }).start();
+    Animated.timing(translateY, { toValue: isVisible ? 0 : 140, duration: 200, useNativeDriver: true }).start();
   }, [isVisible, translateY]);
 
   return (
-    <View
-      pointerEvents="box-none"
-      style={{ width: "100%", position: "absolute", bottom: 0 }}
-    >
-      <Animated.View
-        style={{
-          position: "absolute",
-          bottom: Math.max(insets.bottom, 8) + 12,
-          alignSelf: "center",
-          paddingHorizontal: 5,
-          paddingVertical: 5,
-          backgroundColor: supportsLiquidGlass
-            ? "rgba(255,255,255,0.24)"
-            : "rgba(17,24,39,0.94)",
-          borderWidth: 1,
-          borderColor: supportsLiquidGlass
-            ? "rgba(255,255,255,0.58)"
-            : "rgba(255,255,255,0.12)",
-          overflow: "hidden",
-          borderRadius: 100,
-          flexDirection: "row",
-          alignItems: "center",
-          shadowColor: "#000",
-          shadowOffset: { width: 0, height: 14 },
-          shadowOpacity: 0.22,
-          shadowRadius: 24,
-          elevation: 12,
-          transform: [{ translateY }],
-        }}
-        pointerEvents={isVisible ? "auto" : "none"}
-      >
-        {supportsLiquidGlass && (
-          <IOSGlassSurface
-            pointerEvents="none"
-            shape="capsule"
-            cornerRadius={100}
-            intensity={30}
-            fallbackBackgroundColor="rgba(255,255,255,0.24)"
-            fallbackBorderColor="rgba(255,255,255,0.58)"
-            style={{
-              position: "absolute",
-              left: 0,
-              right: 0,
-              top: 0,
-              bottom: 0,
-            }}
-          />
-        )}
-        {state.routes.map((route, index) => {
-          const { options } = descriptors[route.key];
-          const isFocused = state.index === index;
-          const onPress = () => {
-            const event = navigation.emit({
-              type: "tabPress",
-              target: route.key,
-              canPreventDefault: true,
-            });
+    <Animated.View
+      pointerEvents={isVisible ? "auto" : "none"}
+      style={{
+        position: "absolute",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        transform: [{ translateY }],
+        backgroundColor: color.surface,
+        borderTopWidth: 1,
+        borderTopColor: color.line,
+        paddingBottom: Math.max(insets.bottom, 8),
+        paddingTop: 6,
+        flexDirection: "row",
+      }}>
+      {state.routes.map((route, index) => {
+        const meta = TABS[route.name];
+        if (!meta) return null;
+        const focused = state.index === index;
+        const label = t(meta.labelKey);
+        const badge = route.name === "orders" && liveCount > 0 ? liveCount : 0;
 
-            if (!isFocused && !event.defaultPrevented) {
-              navigation.navigate(route.name, route.params);
-            }
-          };
+        const onPress = () => {
+          Haptics.selectionAsync().catch(() => {});
+          const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
+          if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
+        };
 
-          const onLongPress = () => {
-            navigation.emit({
-              type: "tabLongPress",
-              target: route.key,
-            });
-          };
-
-          const meta = TAB_META[route.name as TabKey] ?? {
-            labelKey: "",
-            icon: (focused: boolean, color: string) => (
-              <Ionicons
-                name={focused ? "ellipse" : "ellipse-outline"}
-                size={25}
-                color={color}
-              />
-            ),
-          };
-
-          return (
-            <TabDockItem
-              key={route.key}
-              label={
-                meta.labelKey
-                  ? t(meta.labelKey)
-                  : String(options.tabBarLabel ?? options.title ?? route.name)
-              }
-              isFocused={isFocused}
-              onPress={onPress}
-              onLongPress={onLongPress}
-              renderIcon={meta.icon}
-            />
-          );
-        })}
-      </Animated.View>
-    </View>
+        return (
+          <Pressable
+            key={route.key}
+            onPress={onPress}
+            onLongPress={() => navigation.emit({ type: "tabLongPress", target: route.key })}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: focused }}
+            accessibilityLabel={descriptors[route.key]?.options.tabBarAccessibilityLabel ?? label}
+            style={{ flex: 1, alignItems: "center", minHeight: 52, justifyContent: "center" }}>
+            <View
+              style={{
+                width: 56,
+                height: 30,
+                borderRadius: 15,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: focused ? color.brand : "transparent",
+              }}>
+              <Ionicons name={focused ? meta.iconActive : meta.icon} size={22} color={focused ? color.ink : color.muted} />
+              {badge ? (
+                <View
+                  style={{ position: "absolute", top: -4, right: 6, backgroundColor: color.danger }}
+                  className="min-w-[18px] h-[18px] rounded-full items-center justify-center px-1">
+                  <Text className="text-[11px] font-bold text-white">{badge}</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text
+              numberOfLines={1}
+              style={{ fontSize: 12, marginTop: 3, fontWeight: focused ? "800" : "600", color: focused ? color.ink : color.muted }}>
+              {label}
+            </Text>
+          </Pressable>
+        );
+      })}
+    </Animated.View>
   );
 }

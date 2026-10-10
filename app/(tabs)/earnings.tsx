@@ -1,1070 +1,227 @@
-import EarningBarChart from "@/components/earnings/EarningBarChart";
-import EarningListItem from "@/components/earnings/EarningListItem";
-import EarningSummaryCard from "@/components/earnings/EarningSummaryCard";
+/**
+ * Earnings — what you'll be paid, what you earned, and cash you're holding.
+ * Everything comes from the payout ledger; tap a day to see its trips.
+ */
+import { Banner, Button, Card, EmptyState, ListGroup, ListRow, Pill, rupees, SectionTitle, Segmented, TabScreen } from "@/components/kit";
 import {
   ApiService,
   DeliveryPayoutLedger,
+  DeliveryPayoutLedgerOrder,
   DeliveryPayoutPeriod,
-  DeliveryPayoutSettlement,
 } from "@/services/api";
-import { useOrderStore } from "@/store/orders";
+import { useAuthStore } from "@/store/auth";
+import { color } from "@/theme/tokens";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetScrollView,
-} from "@gorhom/bottom-sheet";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import {
-  Alert,
-  Linking,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 
-// ─── Types ───────────────────────────────────────────────────────────────────
+const day = (value?: string) =>
+  value ? new Date(value).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—";
+const time = (value?: string) =>
+  value ? new Date(value).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }) : "";
 
-interface DayGroup {
-  date: string; // e.g. "Mar 3, 2026"
-  rawDate: Date;
-  amount: number;
-  orderCount: number;
-  orders: any[];
-}
-
-const formatMoney = (value?: number | null) =>
-  `₹${Math.round(Number(value || 0)).toLocaleString("en-IN")}`;
-
-const formatDate = (value?: string | Date | null) => {
-  if (!value) return "—";
-  return new Date(value).toLocaleDateString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-  });
-};
-
-const formatDateTime = (value?: string | Date | null) => {
-  if (!value) return "—";
-  return new Date(value).toLocaleString("en-IN", {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-};
-
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+type DayGroup = { key: string; label: string; total: number; orders: DeliveryPayoutLedgerOrder[] };
 
 export default function EarningsScreen() {
-  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
-  const { width } = useWindowDimensions();
-  const isCompact = width < 390;
-  const pagePadding = isCompact ? 18 : 24;
-  const sectionStyle = { paddingHorizontal: pagePadding };
-  const { orderHistory, fetchOrderHistory } = useOrderStore();
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedGroup, setSelectedGroup] = useState<DayGroup | null>(null);
-  const seeAllSheetRef = useRef<BottomSheetModal>(null);
-  const dayDetailSheetRef = useRef<BottomSheetModal>(null);
-  const payoutSheetRef = useRef<BottomSheetModal>(null);
-  const [selectedSettlement, setSelectedSettlement] =
-    useState<DeliveryPayoutSettlement | null>(null);
-  const [chartPeriod, setChartPeriod] = useState<"7d" | "30d">("7d");
-  const [ledgerPeriod, setLedgerPeriod] = useState<DeliveryPayoutPeriod>("week");
+  const router = useRouter();
+  const [period, setPeriod] = useState<DeliveryPayoutPeriod>("week");
   const [ledger, setLedger] = useState<DeliveryPayoutLedger | null>(null);
-  const [ledgerLoading, setLedgerLoading] = useState(true);
-  const [payout, setPayout] = useState<{
-    nextPayoutAmount: number;
-    nextPayoutDate: string;
-    method: string;
-    destination: string;
-    withdrawalAvailable: boolean;
-  } | null>(null);
-  const [requestingPayout, setRequestingPayout] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [openDay, setOpenDay] = useState<string | null>(null);
+  const [requesting, setRequesting] = useState(false);
 
-  const loadPayout = useCallback(async () => {
-    setLedgerLoading(true);
-    const [earningsRes, ledgerRes] = await Promise.all([
-      ApiService.getEarnings("week"),
-      ApiService.getPayoutLedger(ledgerPeriod),
-    ]);
-    if (earningsRes.success && earningsRes.data?.payout) {
-      setPayout(earningsRes.data.payout);
-    }
-    if (ledgerRes.success && ledgerRes.data) {
-      setLedger(ledgerRes.data);
-      setPayout({
-        nextPayoutAmount: ledgerRes.data.summary.payableAmount,
-        nextPayoutDate:
-          ledgerRes.data.summary.nextPayoutDate || new Date().toISOString(),
-        method: "Bank/UPI",
-        destination: "Registered payout account",
-        withdrawalAvailable: ledgerRes.data.summary.payableAmount > 0,
-      });
-    }
-    setLedgerLoading(false);
-  }, [ledgerPeriod]);
+  const load = useCallback(async () => {
+    const res = await ApiService.getPayoutLedger(period);
+    if (res.success && res.data) setLedger(res.data);
+    setLoading(false);
+  }, [period]);
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetchOrderHistory();
-      loadPayout();
-    }, 0);
+    setLoading(true);
+    void load();
+  }, [load]);
 
-    return () => clearTimeout(timer);
-  }, [fetchOrderHistory, loadPayout]);
-
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await Promise.all([fetchOrderHistory(), loadPayout()]);
-    setRefreshing(false);
-  };
-
-  const requestWithdrawal = async () => {
-    if (!payout?.nextPayoutAmount) return;
-    const amount = formatMoney(payout.nextPayoutAmount);
-    Alert.alert(
-      t("earnings.requestWithdrawal"),
-      t("earnings.requestWithdrawalMessage", { amount }),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: t("common.request"),
-          onPress: async () => {
-            setRequestingPayout(true);
-            const res = await ApiService.requestPayoutWithdrawal(
-              payout.nextPayoutAmount,
-            );
-            setRequestingPayout(false);
-            Alert.alert(
-              res.success ? t("earnings.requested") : t("earnings.failed"),
-              res.message,
-            );
-          },
-        },
-      ],
-    );
-  };
-
-  const completedOrders = useMemo(
-    () =>
-      ledger?.orders?.length
-        ? ledger.orders.map((order) => ({
-            ...order,
-            id: order.id,
-            createdAt: order.deliveredAt,
-            status: "delivered",
-            earnings: order.earning,
-            paymentType: order.paymentMethod === "cash" ? "cash" : "online",
-            distance: order.distanceKm ?? 0,
-          }))
-        : orderHistory.filter((o) => o.status === "delivered"),
-    [ledger, orderHistory],
-  );
-
-  // Group by day
-  const allDayGroups: DayGroup[] = useMemo(() => {
+  const days = useMemo<DayGroup[]>(() => {
     const map = new Map<string, DayGroup>();
-    completedOrders.forEach((order) => {
-      const d = new Date(order.createdAt);
-      const key = d.toLocaleDateString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-      const earnings = order.earnings || 0;
-      const existing = map.get(key);
-      if (existing) {
-        existing.amount += earnings;
-        existing.orderCount++;
-        existing.orders.push(order);
-      } else {
-        map.set(key, {
-          date: key,
-          rawDate: d,
-          amount: earnings,
-          orderCount: 1,
-          orders: [order],
-        });
-      }
-    });
-    return Array.from(map.values()).sort(
-      (a, b) => b.rawDate.getTime() - a.rawDate.getTime(),
-    );
-  }, [completedOrders]);
-
-  // Recent 7 groups shown in screen
-  const recentGroups = allDayGroups.slice(0, 7);
-
-  // Week / Month chart data
-  const chartData = useMemo(() => {
-    const days = chartPeriod === "7d" ? 7 : 30;
-    const dayLabels =
-      chartPeriod === "7d"
-        ? ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-        : Array.from({ length: 30 }, (_, i) => String(i + 1));
-
-    const result: { label: string; value: number }[] = [];
-
-    for (let i = days - 1; i >= 0; i--) {
-      const date = new Date();
-      date.setDate(date.getDate() - i);
-      date.setHours(0, 0, 0, 0);
-
-      const dayOrders = completedOrders.filter((o) => {
-        const od = new Date(o.createdAt);
-        od.setHours(0, 0, 0, 0);
-        return od.getTime() === date.getTime();
-      });
-
-      const label =
-        chartPeriod === "7d"
-          ? dayLabels[date.getDay()]
-          : String(date.getDate());
-
-      result.push({
-        label,
-        value: dayOrders.reduce((s, o) => s + (o.earnings || 0), 0),
-      });
+    for (const o of ledger?.orders ?? []) {
+      const key = new Date(o.deliveredAt).toDateString();
+      const g = map.get(key) ?? { key, label: day(o.deliveredAt), total: 0, orders: [] };
+      g.total += o.earning || 0;
+      g.orders.push(o);
+      map.set(key, g);
     }
-    return result;
-  }, [completedOrders, chartPeriod]);
+    return [...map.values()].sort((a, b) => new Date(b.key).getTime() - new Date(a.key).getTime());
+  }, [ledger]);
 
-  // Summary numbers
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const partner = useAuthStore((st) => st.partner) as any;
+  const hasPayoutAccount = Boolean(partner?.upiId || partner?.bankAccountNumber);
+  const summary = ledger?.summary;
+  const cash = ledger?.cash;
+  const payable = summary?.payableAmount ?? 0;
 
-  const todayEarnings = completedOrders
-    .filter((o) => {
-      const d = new Date(o.createdAt);
-      d.setHours(0, 0, 0, 0);
-      return d.getTime() === today.getTime();
-    })
-    .reduce((s, o) => s + (o.earnings || 0), 0);
-
-  const todayDeliveries = completedOrders.filter((o) => {
-    const d = new Date(o.createdAt);
-    d.setHours(0, 0, 0, 0);
-    return d.getTime() === today.getTime();
-  }).length;
-
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - 6);
-
-  const weeklyEarnings = completedOrders
-    .filter((o) => new Date(o.createdAt) >= weekStart)
-    .reduce((s, o) => s + (o.earnings || 0), 0);
-
-  const maxValue = Math.max(...chartData.map((d) => d.value), 1);
+  const requestPayout = () => {
+    Alert.alert(t("earn.requestTitle"), t("earn.requestBody", { amount: rupees(payable) }), [
+      { text: t("common.close"), style: "cancel" },
+      {
+        text: t("common.confirm"),
+        onPress: async () => {
+          setRequesting(true);
+          const res = await ApiService.requestPayoutWithdrawal(payable);
+          setRequesting(false);
+          Alert.alert(res.success ? t("earn.requested") : t("common.failed"), res.message);
+        },
+      },
+    ]);
+  };
 
   return (
-    <View className="flex-1 bg-[#F3E0D9]">
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
+    <TabScreen
+      title={t("earn.title")}
+      refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#F59E0B"
-            colors={["#F59E0B"]}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await load();
+              setRefreshing(false);
+            }}
           />
-        }
-        contentContainerStyle={{
-          paddingBottom: Math.max(insets.bottom, 12) + 168,
-          paddingTop: insets.top + 10,
-        }}>
-        {/* ── Header ── */}
-        <View className="pb-5" style={sectionStyle}>
-          <View className="flex-row items-center justify-between mb-2">
-            <View className="flex-1">
-              <Text className="text-sm font-medium text-[#7A7A7A] uppercase tracking-wider">
-                {t("earnings.overview")}
-              </Text>
-              <Text
-                className="font-extrabold text-[#1A1A1A] mt-1"
-                style={{ fontSize: isCompact ? 28 : 30, lineHeight: isCompact ? 34 : 36 }}
-                numberOfLines={2}
-                adjustsFontSizeToFit>
-                {t("earnings.trackIncome")}
-              </Text>
-            </View>
-            <TouchableOpacity
-              className="w-12 h-12 bg-white rounded-full items-center justify-center "
-              activeOpacity={0.7}>
-              <Ionicons name="download-outline" size={24} color="#F59E0B" />
-            </TouchableOpacity>
-          </View>
-        </View>
+      }>
 
-        {/* ── Hero Card – Today's Earnings ── */}
-        <View className="mt-2" style={sectionStyle}>
-          <View className="bg-white rounded-[32px] p-1 ">
-            <View className="bg-gray-50 rounded-[28px] overflow-hidden">
-              <EarningSummaryCard
-                title={t("earnings.todaysEarnings")}
-                amount={todayEarnings}
-                subtitle={t("earnings.fromDeliveriesToday", {
-                  count: todayDeliveries,
-                  label: t(
-                    todayDeliveries === 1
-                      ? "common.delivery"
-                      : "common.deliveries",
-                  ),
-                })}
-                icon="trending-up"
-                iconColor="#F59E0B"
-                iconBg="#FFFBEB"
-                trend={{ value: "Live", isPositive: true }}
-              />
-            </View>
-          </View>
-        </View>
-
-        {/* ── Mini Stats ── */}
-        <View className="mt-4 flex-row gap-3" style={sectionStyle}>
-          <View
-            className="flex-1 bg-white rounded-[28px] relative overflow-hidden"
-            style={{ padding: isCompact ? 16 : 20 }}>
-            <View className="absolute right-0 top-0 w-16 h-16 bg-[#3B82F6]/10 rounded-full -mr-6 -mt-6" />
-            <View className="w-10 h-10 bg-[#DBEAFE] rounded-2xl items-center justify-center mb-3">
-              <Ionicons name="calendar" size={20} color="#3B82F6" />
-            </View>
-            <Text className="text-xs font-bold text-[#6B7280] mb-1 uppercase tracking-wide">
-              {t("earnings.thisWeek")}
-            </Text>
-            <Text className="text-2xl font-extrabold text-[#1A1A1A]">
-              ₹{weeklyEarnings.toLocaleString()}
-            </Text>
-          </View>
-          <View
-            className="flex-1 bg-white rounded-[28px] relative overflow-hidden"
-            style={{ padding: isCompact ? 16 : 20 }}>
-            <View className="absolute right-0 top-0 w-16 h-16 bg-[#10B981]/10 rounded-full -mr-6 -mt-6" />
-            <View className="w-10 h-10 bg-[#D1FAE5] rounded-2xl items-center justify-center mb-3">
-              <Ionicons name="checkmark-done" size={20} color="#10B981" />
-            </View>
-            <Text className="text-xs font-bold text-[#6B7280] mb-1 uppercase tracking-wide">
-              {t("earnings.completed")}
-            </Text>
-            <Text className="text-2xl font-extrabold text-[#1A1A1A]">
-              {completedOrders.length}
-            </Text>
-          </View>
-        </View>
-
-        {/* ── Payout Visibility ── */}
-        <View className="mt-4" style={sectionStyle}>
-          <View
-            className="bg-white rounded-[28px] border border-gray-100"
-            style={{ padding: isCompact ? 16 : 20 }}>
-            <View
-              className="items-start justify-between mb-3"
-              style={{
-                flexDirection: isCompact ? "column" : "row",
-                gap: isCompact ? 12 : 8,
-              }}>
-              <View className="flex-row items-center flex-1">
-                <View className="w-10 h-10 bg-[#ECFDF5] rounded-2xl items-center justify-center mr-3">
-                  <Ionicons name="card-outline" size={20} color="#10B981" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-sm font-extrabold text-[#1A1A1A]">
-                    {t("earnings.adminPayable")}
-                  </Text>
-                  <Text className="text-xs text-[#9CA3AF] mt-0.5">
-                    {ledger?.summary.nextPayoutDate
-                      ? t("earnings.nextCycle", {
-                          date: formatDate(ledger.summary.nextPayoutDate),
-                        })
-                      : t("earnings.grossEarningsOwed")}
-                  </Text>
-                </View>
-              </View>
-              <Text
-                className="text-xl font-extrabold text-[#10B981]"
-                style={{ alignSelf: isCompact ? "flex-end" : "center" }}>
-                {formatMoney(
-                  ledger?.summary.payableAmount ??
-                    payout?.nextPayoutAmount ??
-                    weeklyEarnings,
-                )}
-              </Text>
-            </View>
-            {/* Cash you're holding is tracked separately under Cash in Hand /
-                Cash Handover below - it's a different debt (you owe it to
-                admin) and no longer reduces what admin owes you here. */}
-            <View className="flex-row flex-wrap gap-2">
-              {([
-                [t("earnings.paid"), ledger?.summary.paidAmount ?? 0, "#10B981"],
-                [t("earnings.scheduled"), ledger?.summary.scheduledAmount ?? 0, "#F59E0B"],
-                [t("earnings.thisPeriod"), ledger?.summary.periodEarned ?? weeklyEarnings, "#3B82F6"],
-              ] as const).map(([label, amount, color]) => (
-                <View key={label} className="flex-1 min-w-[95px] rounded-2xl bg-gray-50 p-3">
-                  <Text className="text-[10px] font-bold uppercase tracking-wide text-[#9CA3AF]">
-                    {label}
-                  </Text>
-                  <Text className="mt-1 text-base font-extrabold" style={{ color }}>
-                    {formatMoney(amount)}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            <View
-              className="mt-4 items-start justify-between"
-              style={{
-                flexDirection: isCompact ? "column" : "row",
-                gap: isCompact ? 12 : 10,
-              }}>
-              <Text className="text-xs text-[#6B7280] flex-1">
-                {ledgerLoading
-                  ? t("earnings.loadingLedger")
-                  : t("earnings.completedTotal", {
-                      count:
-                        ledger?.summary.deliveredOrders ??
-                        completedOrders.length,
-                    })}
-              </Text>
-              <TouchableOpacity
-                onPress={requestWithdrawal}
-                disabled={requestingPayout || !(payout?.withdrawalAvailable)}
-                className={`px-4 py-2 rounded-full ${
-                  payout?.withdrawalAvailable ? "bg-[#10B981]" : "bg-gray-200"
-                }`}
-                style={{ alignSelf: isCompact ? "flex-end" : "center" }}>
-                <Text className="text-white text-xs font-bold">
-                  {requestingPayout
-                    ? t("common.requesting")
-                    : t("common.request")}
-                </Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Cash in hand ── */}
-        <View className="mt-4" style={sectionStyle}>
-          <View
-            className="bg-white rounded-[28px] border border-orange-100"
-            style={{ padding: isCompact ? 16 : 20 }}>
-            <View
-              className="items-start justify-between mb-4"
-              style={{
-                flexDirection: isCompact ? "column" : "row",
-                gap: isCompact ? 10 : 8,
-              }}>
-              <View className="flex-row items-center flex-1">
-                <View className="w-10 h-10 bg-orange-50 rounded-2xl items-center justify-center mr-3">
-                  <Ionicons name="cash-outline" size={20} color="#F97316" />
-                </View>
-                <View className="flex-1">
-                  <Text className="text-sm font-extrabold text-[#1A1A1A]">
-                    {t("earnings.cashInHand")}
-                  </Text>
-                  <Text className="text-xs text-[#9CA3AF] mt-0.5">
-                    {t("earnings.cashHint")}
-                  </Text>
-                </View>
-              </View>
-              <Text
-                className="text-xl font-extrabold text-[#F97316]"
-                style={{ alignSelf: isCompact ? "flex-end" : "center" }}>
-                {formatMoney(ledger?.cash.cashInHand ?? 0)}
-              </Text>
-            </View>
-            <View
-              className="gap-2"
-              style={{ flexDirection: isCompact ? "column" : "row" }}>
-              <View
-                className="rounded-2xl bg-orange-50 p-3"
-                style={isCompact ? { width: "100%" } : { flex: 1 }}>
-                <Text className="text-[10px] font-bold uppercase tracking-wide text-orange-500">
-                    {t("earnings.collected")}
-                </Text>
-                <Text className="mt-1 text-base font-extrabold text-[#1A1A1A]">
-                  {formatMoney(ledger?.cash.totalCollected ?? 0)}
-                </Text>
-                <Text className="mt-0.5 text-[10px] text-[#9CA3AF]">
-                  {t("earnings.codOrders", {
-                    count: ledger?.cash.deliveredCashOrders ?? 0,
-                  })}
-                </Text>
-              </View>
-              <View
-                className="rounded-2xl bg-green-50 p-3"
-                style={isCompact ? { width: "100%" } : { flex: 1 }}>
-                <Text className="text-[10px] font-bold uppercase tracking-wide text-green-600">
-                  {t("earnings.handedToAdmin")}
-                </Text>
-                <Text className="mt-1 text-base font-extrabold text-[#1A1A1A]">
-                  {formatMoney(ledger?.cash.totalRemitted ?? 0)}
-                </Text>
-                <Text className="mt-0.5 text-[10px] text-[#9CA3AF]">
-                  {t("earnings.clearsAfterAdmin")}
-                </Text>
-              </View>
-            </View>
-          </View>
-        </View>
-
-        {/* ── Admin payout transactions ── */}
-        <View className="mt-6" style={sectionStyle}>
-          <View
-            className="items-start justify-between mb-4 ml-1"
-            style={{
-              flexDirection: isCompact ? "column" : "row",
-              gap: isCompact ? 12 : 8,
-            }}>
-            <Text className="text-lg font-bold text-[#1A1A1A] flex-1">
-              {t("earnings.adminPayoutTransactions")}
-            </Text>
-            <View className="flex-row bg-white rounded-full p-1">
-              {(["week", "month", "all"] as DeliveryPayoutPeriod[]).map((period) => (
-                <TouchableOpacity
-                  key={period}
-                  onPress={() => setLedgerPeriod(period)}
-                  className={`px-3 py-1.5 rounded-full ${
-                    ledgerPeriod === period ? "bg-[#FFF7ED]" : ""
-                  }`}>
-                  <Text
-                    className={`text-xs font-bold ${
-                      ledgerPeriod === period ? "text-[#F97316]" : "text-[#9CA3AF]"
-                    }`}>
-                    {period === "week"
-                      ? t("earnings.week")
-                      : period === "month"
-                        ? t("earnings.month")
-                        : t("earnings.all")}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-          {(ledger?.settlements ?? []).length === 0 ? (
-            <View className="bg-white rounded-[28px] p-6 border border-dashed border-gray-200 items-center">
-              <Ionicons name="receipt-outline" size={34} color="#D1D5DB" />
-              <Text className="mt-3 text-sm font-bold text-[#6B7280]">
-                {t("earnings.noPayouts")}
-              </Text>
-                <Text className="mt-1 text-xs text-[#9CA3AF] text-center">
-                {t("earnings.noPayoutsHint")}
-              </Text>
-            </View>
-          ) : (
-            ledger?.settlements.map((settlement) => (
-              <TouchableOpacity
-                key={settlement.id}
-                activeOpacity={0.75}
-                onPress={() => {
-                  setSelectedSettlement(settlement);
-                  requestAnimationFrame(() => payoutSheetRef.current?.present());
-                }}
-                className="mb-3 rounded-[24px] border border-gray-100 bg-white p-4">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-1 pr-3">
-                    <Text className="text-lg font-extrabold text-[#1A1A1A]">
-                      {formatMoney(settlement.amount)}
-                    </Text>
-                    <Text className="mt-1 text-xs text-[#9CA3AF]">
-                      {formatDate(settlement.periodStart)} → {formatDate(settlement.periodEnd)}
-                    </Text>
-                    <Text className="mt-1 text-[10px] font-bold uppercase tracking-wide text-[#9CA3AF]">
-                      {settlement.source === "legacy_payout"
-                        ? t("earnings.legacyPayout")
-                        : t("earnings.manualSettlement", {
-                            cycle: settlement.cycle ?? "manual",
-                          })}
-                    </Text>
-                    {settlement.proofUrl && (
-                      <Text className="mt-1 text-xs font-bold text-[#F97316]">
-                        {t("earnings.paymentProofAvailable")}
-                      </Text>
-                    )}
-                  </View>
-                  <View
-                    className={`rounded-full px-3 py-1 ${
-                      settlement.status === "paid" ? "bg-green-50" : "bg-orange-50"
-                    }`}>
-                    <Text
-                      className={`text-xs font-bold ${
-                        settlement.status === "paid" ? "text-[#10B981]" : "text-[#F97316]"
-                      }`}>
-                      {settlement.status.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-              </TouchableOpacity>
-            ))
-          )}
-        </View>
-
-        {/* ── Cash remittance transactions ── */}
-        <View className="mt-6" style={sectionStyle}>
-          <Text className="text-lg font-bold text-[#1A1A1A] mb-4 ml-1">
-            {t("earnings.cashPaidToAdmin")}
+        {/* What KhaaoNow owes you */}
+        <View className="rounded-3xl p-5 gap-1" style={{ backgroundColor: color.ink }}>
+          <Text className="text-sm font-semibold" style={{ color: color.faint }}>
+            {t("earn.toBePaid")}
           </Text>
-          {(ledger?.cash.remittances ?? []).length === 0 ? (
-            <View className="bg-white rounded-[28px] p-6 border border-dashed border-gray-200 items-center">
-              <Ionicons name="cash-outline" size={34} color="#D1D5DB" />
-              <Text className="mt-3 text-sm font-bold text-[#6B7280]">
-                {t("earnings.noRemittance")}
-              </Text>
-              <Text className="mt-1 text-xs text-[#9CA3AF] text-center">
-                {t("earnings.noRemittanceHint")}
-              </Text>
-            </View>
-          ) : (
-            ledger?.cash.remittances.map((entry) => (
-              <View
-                key={entry.id}
-                className="mb-3 rounded-[22px] border border-gray-100 bg-white p-4">
-                <View className="flex-row items-center justify-between">
-                  <View className="flex-1 pr-3">
-                    <Text className="text-base font-extrabold text-[#1A1A1A]">
-                      {formatMoney(entry.amount)}
-                    </Text>
-                    <Text className="mt-1 text-xs text-[#9CA3AF]">
-                      {formatDateTime(entry.remittedAt)}
-                    </Text>
-                    {!!entry.notes && (
-                      <Text className="mt-1 text-xs text-[#6B7280]">
-                        {entry.notes}
-                      </Text>
-                    )}
-                  </View>
-                  <View className="rounded-full bg-green-50 px-3 py-1">
-                    <Text className="text-xs font-bold text-[#10B981]">
-                      {t("earnings.received")}
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            ))
-          )}
-        </View>
-
-        {/* ── Chart ── */}
-        <View className="mt-6" style={sectionStyle}>
-          <View
-            className="bg-white rounded-[32px]"
-            style={{ padding: isCompact ? 18 : 24 }}>
-            {/* Period Toggle */}
-            <View
-              className="items-start justify-between mb-4"
-              style={{
-                flexDirection: isCompact ? "column" : "row",
-                gap: isCompact ? 12 : 8,
-              }}>
-              <Text className="text-lg font-bold text-[#1A1A1A] flex-1">
-                {t("earnings.earningsChart")}
-              </Text>
-              <View
-                className="flex-row bg-gray-100 rounded-full p-1"
-                style={{ alignSelf: isCompact ? "stretch" : "center" }}>
-                {(["7d", "30d"] as const).map((p) => (
-                  <TouchableOpacity
-                    key={p}
-                    onPress={() => setChartPeriod(p)}
-                    style={{
-                      flex: isCompact ? 1 : undefined,
-                      paddingHorizontal: isCompact ? 10 : 14,
-                      paddingVertical: 6,
-                      borderRadius: 50,
-                      backgroundColor:
-                        chartPeriod === p ? "#FFF" : "transparent",
-                    }}
-                    activeOpacity={0.7}>
-                    <Text
-                      style={{
-                        fontSize: 12,
-                        fontWeight: "700",
-                        color: chartPeriod === p ? "#F59E0B" : "#9CA3AF",
-                      }}>
-                      {p === "7d" ? t("earnings.sevenDays") : t("earnings.thirtyDays")}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {completedOrders.length === 0 ? (
-              <View className="items-center py-10">
-                <Ionicons name="bar-chart-outline" size={48} color="#E5E7EB" />
-                <Text className="text-sm text-[#9CA3AF] mt-3 text-center">
-                  {t("earnings.noEarningsData")}
-                </Text>
-                <Text className="text-xs text-[#D1D5DB] mt-1 text-center">
-                  {t("earnings.chartHint")}
-                </Text>
-              </View>
-            ) : (
-              <EarningBarChart
-                data={chartData}
-                maxValue={maxValue}
-                compact={isCompact}
-              />
-            )}
-          </View>
-        </View>
-
-        {/* ── Earnings History ── */}
-        <View className="mt-6" style={sectionStyle}>
-          <View className="flex-row items-center justify-between mb-4 ml-1">
-            <Text className="text-lg font-bold text-[#1A1A1A]">
-              {t("earnings.history")}
-            </Text>
-            {allDayGroups.length > 7 && (
-              <TouchableOpacity
-                activeOpacity={0.7}
-                onPress={() => seeAllSheetRef.current?.present()}>
-                <Text className="text-sm font-bold text-[#F59E0B]">
-                  {t("earnings.seeAll")} ({allDayGroups.length})
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-
-          {recentGroups.length === 0 ? (
-            <View className="bg-white rounded-[42px] p-8  items-center">
-              <View className="w-20 h-20 bg-gray-100 rounded-full items-center justify-center mb-4">
-                <Ionicons name="wallet-outline" size={36} color="#9CA3AF" />
-              </View>
-              <Text className="text-lg font-bold text-[#1A1A1A] mb-2">
-                {t("earnings.noEarningsYet")}
-              </Text>
-              <Text className="text-sm text-[#7A7A7A] text-center max-w-[200px] leading-5">
-                {t("earnings.firstDeliveryHint")}
-              </Text>
-            </View>
-          ) : (
-            recentGroups.map((group, index) => (
-              <EarningListItem
-                key={index}
-                date={group.date}
-                amount={group.amount}
-                orderCount={group.orderCount}
-                onPress={() => {
-                  setSelectedGroup(group);
-                  requestAnimationFrame(() =>
-                    dayDetailSheetRef.current?.present(),
-                  );
-                }}
-              />
-            ))
-          )}
-        </View>
-      </ScrollView>
-
-      <BottomSheetModal
-        ref={seeAllSheetRef}
-        snapPoints={["55%", "88%"]}
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop
-            {...props}
-            appearsOnIndex={0}
-            disappearsOnIndex={-1}
-          />
-        )}>
-        <BottomSheetScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}>
-          <View className="mb-5 flex-row items-center justify-between">
-            <Text className="text-xl font-extrabold text-[#1A1A1A]">
-              {t("earnings.allEarnings")}
-            </Text>
-            <TouchableOpacity
-              onPress={() => seeAllSheetRef.current?.dismiss()}
-              className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center"
-              activeOpacity={0.7}>
-              <Ionicons name="close" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-          {allDayGroups.length === 0 ? (
-            <View className="items-center py-12">
-              <Ionicons name="wallet-outline" size={48} color="#D1D5DB" />
-              <Text className="text-gray-400 mt-4 text-sm">
-                {t("earnings.noEarningsYet")}
-              </Text>
-            </View>
-          ) : (
-            allDayGroups.map((group, index) => (
-              <EarningListItem
-                key={`${group.date}-${index}`}
-                date={group.date}
-                amount={group.amount}
-                orderCount={group.orderCount}
-                onPress={() => {
-                  seeAllSheetRef.current?.dismiss();
-                  setSelectedGroup(group);
-                  setTimeout(() => dayDetailSheetRef.current?.present(), 220);
-                }}
-              />
-            ))
-          )}
-        </BottomSheetScrollView>
-      </BottomSheetModal>
-
-      <BottomSheetModal
-        ref={dayDetailSheetRef}
-        snapPoints={["62%", "90%"]}
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop
-            {...props}
-            appearsOnIndex={0}
-            disappearsOnIndex={-1}
-          />
-        )}>
-        <BottomSheetScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}>
-          <View className="mb-5 flex-row items-center justify-between">
-            <View>
-              <Text className="text-xs font-bold text-[#9CA3AF] uppercase tracking-widest mb-1">
-                {t("earnings.earningsFor")}
-              </Text>
-              <Text className="text-xl font-extrabold text-[#1A1A1A]">
-                {selectedGroup?.date ?? t("earnings.selectedDay")}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => dayDetailSheetRef.current?.dismiss()}
-              className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center"
-              activeOpacity={0.7}>
-              <Ionicons name="close" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-
-          {!!selectedGroup && (
-            <View className="mb-5 bg-[#FFFBEB] rounded-2xl p-4 flex-row border border-amber-100">
-              <View className="flex-1 items-center border-r border-amber-200">
-                <Text className="text-2xl font-extrabold text-[#1A1A1A]">
-                  {formatMoney(selectedGroup.amount)}
-                </Text>
-                <Text className="text-xs text-[#6B7280] font-medium mt-0.5">
-                  {t("earnings.totalEarned")}
-                </Text>
-              </View>
-              <View className="flex-1 items-center">
-                <Text className="text-2xl font-extrabold text-[#1A1A1A]">
-                  {selectedGroup.orderCount}
-                </Text>
-                <Text className="text-xs text-[#6B7280] font-medium mt-0.5">
-                  {t("earnings.deliveries")}
-                </Text>
-              </View>
-            </View>
-          )}
-
-          <Text className="text-sm font-bold text-[#6B7280] uppercase tracking-widest mb-3">
-            {t("earnings.orders")}
+          <Text className="text-4xl font-extrabold" style={{ color: color.brand }}>
+            {rupees(payable)}
           </Text>
-          {(selectedGroup?.orders ?? []).map((order, idx) => {
-            const deliveredAt = order.deliveredAt || order.createdAt;
-            const paymentType =
-              order.paymentType || (order.paymentMethod === "cash" ? "cash" : "online");
+          <Text className="text-sm" style={{ color: color.faint }}>
+            {summary?.nextPayoutDate ? t("earn.nextPayout", { date: day(summary.nextPayoutDate) }) : t("earn.paidWeekly")}
+          </Text>
+          {!hasPayoutAccount ? (
+            <View className="mt-3">
+              <Button title={t("earn.addPayout")} icon="wallet-outline" onPress={() => router.push("/profile/payments")} />
+            </View>
+          ) : payable > 0 ? (
+            <View className="mt-3">
+              <Button title={t("earn.requestNow")} icon="cash-outline" loading={requesting} onPress={requestPayout} />
+            </View>
+          ) : null}
+        </View>
+
+        {/* Cash you're holding */}
+        {cash && cash.cashInHand > 0 ? (
+          <Banner
+            tone="warning"
+            icon="wallet-outline"
+            title={t("earn.cashInHand", { amount: rupees(cash.cashInHand) })}
+            body={t("earn.cashInHandBody")}
+          />
+        ) : null}
+
+        <Segmented
+          value={period}
+          onChange={(p) => {
+            setPeriod(p);
+            setOpenDay(null);
+          }}
+          options={[
+            { value: "today", label: t("earn.today") },
+            { value: "week", label: t("earn.week") },
+            { value: "month", label: t("earn.month") },
+          ]}
+        />
+
+        <View className="flex-row gap-3">
+          <Card style={{ flex: 1 }}>
+            <Text className="text-sm text-muted">{t("earn.earned")}</Text>
+            <Text className="text-2xl font-extrabold text-ink">{rupees(summary?.periodEarned)}</Text>
+          </Card>
+          <Card style={{ flex: 1 }}>
+            <Text className="text-sm text-muted">{t("earn.trips")}</Text>
+            <Text className="text-2xl font-extrabold text-ink">{summary?.periodOrders ?? 0}</Text>
+          </Card>
+        </View>
+
+        {/* Trips by day */}
+        <SectionTitle title={t("earn.byDay")} />
+        {loading ? (
+          <ActivityIndicator color={color.ink} style={{ paddingVertical: 32 }} />
+        ) : days.length === 0 ? (
+          <EmptyState icon="bicycle-outline" title={t("earn.noTrips")} body={t("earn.noTripsBody")} />
+        ) : (
+          days.map((g) => {
+            const open = openDay === g.key;
             return (
-              <View
-                key={order.id ?? order.orderNumber ?? idx}
-                className="bg-white rounded-2xl p-4 mb-3 border border-gray-100">
-                <View className="flex-row items-center justify-between mb-3">
-                  <Text className="text-xs font-bold text-[#9CA3AF] tracking-wide">
-                    #{order.orderNumber || String(order.id).slice(-8).toUpperCase()}
-                  </Text>
-                  <View className="bg-[#D1FAE5] px-3 py-1 rounded-full">
-                    <Text className="text-xs font-bold text-[#10B981]">
-                      {t("earnings.delivered")}
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="flex-row items-center mb-2">
-                  <View className="w-8 h-8 bg-[#FFFBEB] rounded-xl items-center justify-center mr-2.5">
-                    <Ionicons name="restaurant" size={15} color="#F59E0B" />
-                  </View>
+              <Card key={g.key} padded={false}>
+                <Pressable
+                  onPress={() => setOpenDay(open ? null : g.key)}
+                  accessibilityRole="button"
+                  accessibilityState={{ expanded: open }}
+                  className="flex-row items-center px-4 py-3.5 gap-3">
                   <View className="flex-1">
-                    <Text
-                      className="text-sm font-bold text-[#1A1A1A]"
-                      numberOfLines={1}>
-                      {order.restaurantName}
-                    </Text>
-                    <Text className="text-xs text-[#9CA3AF]" numberOfLines={1}>
-                      {formatDateTime(deliveredAt)}
-                      {order.slabLabel ? ` · ${order.slabLabel}` : ""}
-                    </Text>
+                    <Text className="text-base font-bold text-ink">{g.label}</Text>
+                    <Text className="text-sm text-muted">{t("earn.tripCount", { count: g.orders.length })}</Text>
                   </View>
-                </View>
-
-                <View className="mt-3 rounded-2xl bg-gray-50 p-3">
-                  <View className="flex-row justify-between mb-2">
-                    <Text className="text-xs text-[#6B7280]">{t("earnings.orderAmount")}</Text>
-                    <Text className="text-xs font-bold text-[#1A1A1A]">
-                      {formatMoney(order.totalAmount)}
-                    </Text>
-                  </View>
-                  {!!order.couponDiscount && (
-                    <View className="flex-row justify-between mb-2">
-                      <Text className="text-xs text-[#F97316]">
-                        Coupon {order.couponCode ? `· ${order.couponCode}` : ""}
-                      </Text>
-                      <Text className="text-xs font-bold text-[#F97316]">
-                        -{formatMoney(order.couponDiscount)}
-                      </Text>
-                    </View>
-                  )}
-                  <View className="flex-row justify-between mb-2">
-                    <Text className="text-xs text-[#6B7280]">{t("earnings.cashCollected")}</Text>
-                    <Text className="text-xs font-bold text-[#1A1A1A]">
-                      {formatMoney(order.cashCollected ?? 0)}
-                    </Text>
-                  </View>
-                  <View className="flex-row justify-between">
-                    <Text className="text-xs text-[#6B7280]">{t("earnings.yourEarning")}</Text>
-                    <Text className="text-sm font-extrabold text-[#10B981]">
-                      {formatMoney(order.earnings ?? order.earning ?? 0)}
-                    </Text>
-                  </View>
-                </View>
-
-                <View className="flex-row items-center justify-between pt-3">
-                  <View
-                    className="px-2 py-0.5 rounded-full"
-                    style={{
-                      backgroundColor:
-                        paymentType === "online" ? "#DBEAFE" : "#D1FAE5",
-                    }}>
-                    <Text
-                      className="text-[10px] font-bold"
-                      style={{
-                        color: paymentType === "online" ? "#3B82F6" : "#10B981",
-                      }}>
-                      {paymentType === "online" ? t("earnings.online") : t("earnings.cash")}
-                    </Text>
-                  </View>
-                  {!!order.distance && (
-                    <Text className="text-xs text-[#9CA3AF] font-medium">
-                      {Number(order.distance).toFixed(1)} km
-                    </Text>
-                  )}
-                </View>
-              </View>
+                  <Text className="text-lg font-extrabold text-success">{rupees(g.total)}</Text>
+                  <Ionicons name={open ? "chevron-up" : "chevron-down"} size={18} color={color.faint} />
+                </Pressable>
+                {open
+                  ? g.orders.map((o) => (
+                      <View key={o.id} className="flex-row items-center gap-3 px-4 py-3 border-t border-line">
+                        <View className="flex-1">
+                          <Text className="text-sm font-semibold text-ink" numberOfLines={1}>
+                            {o.restaurantName}
+                          </Text>
+                          <Text className="text-xs text-muted">
+                            #{o.orderNumber} · {time(o.deliveredAt)}
+                            {o.distanceKm ? ` · ${o.distanceKm.toFixed(1)} km` : ""}
+                          </Text>
+                        </View>
+                        {o.cashCollected > 0 ? <Pill label={t("earn.cash", { amount: rupees(o.cashCollected) })} tone="warning" /> : null}
+                        <Text className="text-base font-bold text-ink">{rupees(o.earning)}</Text>
+                      </View>
+                    ))
+                  : null}
+              </Card>
             );
-          })}
-        </BottomSheetScrollView>
-      </BottomSheetModal>
+          })
+        )}
 
-      <BottomSheetModal
-        ref={payoutSheetRef}
-        snapPoints={["45%", "78%"]}
-        backdropComponent={(props) => (
-          <BottomSheetBackdrop
-            {...props}
-            appearsOnIndex={0}
-            disappearsOnIndex={-1}
-          />
-        )}>
-        <BottomSheetScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 40 }}>
-          <View className="mb-5 flex-row items-center justify-between">
-            <View>
-              <Text className="text-xl font-extrabold text-[#1A1A1A]">
-                {t("earnings.payoutReceipt")}
-              </Text>
-              <Text className="mt-1 text-xs text-[#9CA3AF]">
-                {formatDate(selectedSettlement?.periodStart)} →{" "}
-                {formatDate(selectedSettlement?.periodEnd)}
-              </Text>
-            </View>
-            <TouchableOpacity
-              onPress={() => payoutSheetRef.current?.dismiss()}
-              className="w-10 h-10 bg-gray-100 rounded-full items-center justify-center"
-              activeOpacity={0.7}>
-              <Ionicons name="close" size={20} color="#6B7280" />
-            </TouchableOpacity>
-          </View>
-
-          {!!selectedSettlement && (
-            <View className="rounded-[24px] bg-gray-50 p-4">
-              {[
-                [t("earnings.amount"), formatMoney(selectedSettlement.amount)],
-                [t("earnings.status"), selectedSettlement.status.toUpperCase()],
-                [
-                  t("earnings.type"),
-                  selectedSettlement.source === "legacy_payout"
-                    ? t("earnings.legacyPayout")
-                    : t("earnings.manualSettlement", {
-                        cycle: selectedSettlement.cycle ?? "manual",
-                      }),
-                ],
-                [t("earnings.paidAt"), formatDateTime(selectedSettlement.paidAt)],
-                [t("earnings.created"), formatDateTime(selectedSettlement.createdAt)],
-              ].map(([label, value]) => (
-                <View
-                  key={label}
-                  className="flex-row justify-between border-b border-white py-3 last:border-0">
-                  <Text className="flex-1 pr-3 text-sm font-medium text-[#6B7280]">
-                    {label}
-                  </Text>
-                  <Text className="text-sm font-extrabold text-[#1A1A1A]">
-                    {value}
-                  </Text>
-                </View>
+        {/* Payouts received */}
+        {ledger?.settlements?.length ? (
+          <>
+            <SectionTitle title={t("earn.payouts")} />
+            <ListGroup>
+              {ledger.settlements.map((s) => (
+                <ListRow
+                  key={s.id}
+                  icon={s.status === "paid" ? "checkmark-circle-outline" : "time-outline"}
+                  title={rupees(s.amount)}
+                  subtitle={`${day(s.periodStart)} – ${day(s.periodEnd)} · ${s.status === "paid" ? t("earn.paid") : t("earn.scheduled")}`}
+                  onPress={s.proofUrl ? () => Linking.openURL(s.proofUrl!) : undefined}
+                />
               ))}
-              {!!selectedSettlement.notes && (
-                <Text className="mt-4 text-sm text-[#6B7280]">
-                  {selectedSettlement.notes}
-                </Text>
-              )}
-              {!!selectedSettlement.breakdown && (
-                <View className="mt-4 rounded-2xl bg-white p-3">
-                  <Text className="mb-2 text-xs font-bold uppercase tracking-wide text-[#9CA3AF]">
-                    Settlement breakdown
-                  </Text>
-                  {[
-                    ["Orders", selectedSettlement.breakdown.orderCount ?? "—"],
-                    [
-                      "Delivery earnings",
-                      formatMoney(selectedSettlement.breakdown.deliveryEarnings ?? 0),
-                    ],
-                    [
-                      "Gross order value",
-                      formatMoney(selectedSettlement.breakdown.grossAmount ?? 0),
-                    ],
-                  ].map(([label, value]) => (
-                    <View key={label} className="flex-row justify-between py-1">
-                      <Text className="text-xs text-[#6B7280]">{label}</Text>
-                      <Text className="text-xs font-bold text-[#1A1A1A]">
-                        {value}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              )}
-              {selectedSettlement.proofUrl ? (
-                <TouchableOpacity
-                  onPress={() => Linking.openURL(selectedSettlement.proofUrl!)}
-                  className="mt-5 flex-row items-center justify-center rounded-2xl bg-[#F97316] py-4">
-                  <Ionicons name="image-outline" size={20} color="white" />
-                  <Text className="ml-2 font-bold text-white">
-                    Open payment proof
-                  </Text>
-                </TouchableOpacity>
-              ) : (
-                <Text className="mt-5 text-center text-sm text-[#9CA3AF]">
-                  No proof screenshot attached yet.
-                </Text>
-              )}
-            </View>
-          )}
-        </BottomSheetScrollView>
-      </BottomSheetModal>
-    </View>
+            </ListGroup>
+          </>
+        ) : null}
+
+        {/* Cash handed over */}
+        {cash?.remittances?.length ? (
+          <>
+            <SectionTitle title={t("earn.cashHanded")} />
+            <ListGroup>
+              {cash.remittances.map((r) => (
+                <ListRow key={r.id} icon="arrow-up-circle-outline" title={rupees(r.amount)} subtitle={r.notes || day(r.remittedAt)} />
+              ))}
+            </ListGroup>
+          </>
+        ) : null}
+    </TabScreen>
   );
 }
