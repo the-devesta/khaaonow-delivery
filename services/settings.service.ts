@@ -6,6 +6,11 @@ export interface PublicAppStatus {
     message: string;
   };
   deliveryApp: {
+    /** This app's own maintenance switch (older backends only send the top-level one). */
+    maintenance?: {
+      enabled: boolean;
+      message: string;
+    };
     minVersion: string;
     latestVersion: string;
     forceUpdateMessage: string;

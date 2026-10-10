@@ -96,10 +96,12 @@ export default function AppStatusGate({ children }: { children: ReactNode }) {
     try {
       const status = await settingsService.getPublicAppStatus();
 
-      if (status.maintenance.enabled) {
+      // Each app has its own switch; fall back to the shared one on older backends.
+      const maintenance = status.deliveryApp?.maintenance ?? status.maintenance;
+      if (maintenance.enabled) {
         setGateState({
           type: "maintenance",
-          message: status.maintenance.message,
+          message: maintenance.message,
         });
         return;
       }
