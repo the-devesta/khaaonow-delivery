@@ -1,265 +1,43 @@
+/** Application not approved — explain and offer support. */
+import { Button, ListGroup, ListRow } from "@/components/kit";
 import { useAuthStore } from "@/store/auth";
+import { color } from "@/theme/tokens";
+import { openPhoneDialer } from "@/utils/phone";
 import { Ionicons } from "@expo/vector-icons";
-import { SafeBlurView } from "@/components/ui/safe-blur-view";
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import {
-  Alert,
-  Image,
-  Linking,
-  Platform,
-  ScrollView,
-  StatusBar,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { router } from "expo-router";
+import React from "react";
 import { useTranslation } from "react-i18next";
+import { ScrollView, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const SUPPORT_PHONE = "+919875054898";
-const SUPPORT_EMAIL = "support@khaaonow.com";
-const SUPPORT_WHATSAPP_PHONE = "919875054898";
-
-export default function AccountRejectedScreen() {
-  const router = useRouter();
+export default function AccountRejected() {
   const { t } = useTranslation();
-  const { logout } = useAuthStore();
   const insets = useSafeAreaInsets();
-
-  const handleLogout = async () => {
-    console.log("🚪 [Rejected] Logging out...");
-    await logout();
-    router.replace("/auth/login");
-  };
-
-  const handleContactSupport = () => {
-    const emailSubject = encodeURIComponent(
-      "Delivery Partner Application Support",
-    );
-    const emailBody = encodeURIComponent(
-      "Hi KhaaoNow Support,\n\nI need help with my delivery partner application.\n\nApplication status: Rejected\nName:\nIssue:\n",
-    );
-    const whatsappText = encodeURIComponent(
-      "Hi KhaaoNow Support,\n\nI need help with my delivery partner application.\n\nApplication status: Rejected\nName:\nIssue:\n",
-    );
-    Alert.alert(
-      t("profile.contactSupport"),
-      t("profile.supportHint"),
-      [
-        { text: t("common.cancel"), style: "cancel" },
-        {
-          text: "Call",
-          onPress: () => Linking.openURL(`tel:${SUPPORT_PHONE}`),
-        },
-        {
-          text: "Email",
-          onPress: () =>
-            Linking.openURL(
-              `mailto:${SUPPORT_EMAIL}?subject=${emailSubject}&body=${emailBody}`,
-            ),
-        },
-        {
-          text: "WhatsApp",
-          onPress: () =>
-            Linking.openURL(
-              `https://api.whatsapp.com/send?phone=${SUPPORT_WHATSAPP_PHONE}&text=${whatsappText}`,
-            ),
-        },
-      ],
-    );
-  };
-
-  const handleTryAgain = async () => {
-    Alert.alert(
-      "Reapply",
-      "To apply again, you'll need to logout and register with a different phone number or contact support for help.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Logout & Try Again",
-          onPress: handleLogout,
-        },
-        {
-          text: t("profile.contactSupport"),
-          onPress: handleContactSupport,
-        },
-      ],
-    );
-  };
+  const { logout } = useAuthStore();
 
   return (
-    <View className="flex-1 bg-black">
-      <StatusBar
-        barStyle="light-content"
-        backgroundColor="transparent"
-        translucent
-      />
-
-      {/* Background Image with Blur */}
-      <View className="absolute w-full h-full overflow-hidden">
-        <Image
-          source={require("../../assets/images/background.png")}
-          className="w-full h-full"
-          resizeMode="cover"
-        />
-        {Platform.OS === "ios" ? (
-          <SafeBlurView
-            intensity={50}
-            tint="dark"
-            className="absolute w-full h-full"
-          />
-        ) : (
-          <View
-            className="absolute w-full h-full"
-            style={{ backgroundColor: "rgba(0,0,0,0.65)" }}
-          />
-        )}
-        <LinearGradient
-          colors={["transparent", "rgba(0,0,0,0.9)"]}
-          style={{ position: "absolute", width: "100%", height: "100%" }}
-        />
-        {/* Red tint overlay for rejection state */}
-        <View className="absolute w-full h-full bg-red-900/20" />
-      </View>
-
-      <ScrollView
-        contentContainerStyle={{
-          flexGrow: 1,
-          paddingTop: insets.top + 20,
-          paddingBottom: insets.bottom + 20,
-        }}
-        showsVerticalScrollIndicator={false}
-      >
-        <View className="flex-1 px-5">
-          {/* Header with Logout */}
-          <View className="flex-row items-center justify-end mb-8">
-            <TouchableOpacity
-              onPress={handleLogout}
-              className="flex-row items-center px-4 py-2 bg-white rounded-full border border-white/20"
-              activeOpacity={0.7}
-            >
-              <Ionicons name="log-out-outline" size={18} color="#EF4444" />
-              <Text className="text-red-400 font-semibold ml-2 text-sm">
-                Logout
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Rejection Icon */}
-          <View className="items-center mb-10">
-            <View className="w-32 h-32 bg-red-500/20 rounded-full items-center justify-center mb-6 border border-red-500/30">
-              <View className="w-24 h-24 bg-red-500 rounded-full items-center justify-center shadow-lg shadow-red-500/50">
-                <Ionicons name="close" size={56} color="white" />
-              </View>
-            </View>
-            <Text className="text-3xl font-extrabold text-white text-center mb-2 tracking-tight">
-              Application Not Approved
-            </Text>
-            <Text className="text-lg text-white/70 text-center leading-6 px-2">
-              We're sorry, but we couldn't approve your application at this
-              time.
-            </Text>
-          </View>
-
-          {/* Reason Card */}
-          <View className="bg-white rounded-[24px] p-6 mb-4 border border-gray-200">
-            <View className="flex-row items-start mb-4">
-              <View className="w-12 h-12 bg-amber-100 rounded-2xl items-center justify-center border border-amber-200">
-                <Ionicons name="information-circle" size={26} color="#F59E0B" />
-              </View>
-              <View className="ml-4 flex-1 pt-1">
-                <Text className="text-lg font-bold text-gray-900 mb-2">
-                  Possible Reasons
-                </Text>
-
-                <View className="space-y-3">
-                  <View className="flex-row items-start">
-                    <View className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2.5 mr-3" />
-                    <Text className="flex-1 text-[15px] text-gray-600 leading-5">
-                      Documents were unclear or invalid
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <View className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2.5 mr-3" />
-                    <Text className="flex-1 text-[15px] text-gray-600 leading-5">
-                      Information mismatch in submitted documents
-                    </Text>
-                  </View>
-                  <View className="flex-row items-start">
-                    <View className="w-1.5 h-1.5 bg-gray-400 rounded-full mt-2.5 mr-3" />
-                    <Text className="flex-1 text-[15px] text-gray-600 leading-5">
-                      Background verification did not pass
-                    </Text>
-                  </View>
-                </View>
-              </View>
-            </View>
-          </View>
-
-          {/* What You Can Do Card */}
-          <View className="bg-white rounded-[24px] p-6 mb-4 border border-gray-200">
-            <Text className="text-lg font-bold text-gray-900 mb-6 uppercase tracking-wider opacity-90">
-              What You Can Do
-            </Text>
-
-            <View className="space-y-4">
-              <TouchableOpacity
-                onPress={handleContactSupport}
-                className="flex-row items-center p-4 bg-gray-50 rounded-2xl border border-gray-200"
-                activeOpacity={0.7}
-              >
-                <View className="w-11 h-11 bg-green-100 rounded-xl items-center justify-center border border-green-200">
-                  <Ionicons
-                    name="chatbubble-ellipses"
-                    size={22}
-                    color="#4ADE80"
-                  />
-                </View>
-                <View className="ml-4 flex-1">
-                  <Text className="text-[15px] font-bold text-gray-900">
-                    {t("profile.contactSupport")}
-                  </Text>
-                  <Text className="text-sm text-gray-500">
-                    {t("profile.supportHint")}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={22} color="#9CA3AF" />
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={handleTryAgain}
-                className="flex-row items-center p-4 bg-gray-50 rounded-2xl border border-gray-200"
-                activeOpacity={0.7}
-              >
-                <View className="w-11 h-11 bg-indigo-100 rounded-xl items-center justify-center border border-indigo-200">
-                  <Ionicons name="reload" size={22} color="#818CF8" />
-                </View>
-                <View className="ml-4 flex-1">
-                  <Text className="text-[15px] font-bold text-gray-900">
-                    Apply Again
-                  </Text>
-                  <Text className="text-sm text-gray-500">
-                    Restart the application process
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={22} color="#9CA3AF" />
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          {/* Footer Info */}
-          <View className="pb-6">
-            <View className="bg-amber-500/10 rounded-2xl p-4 border border-amber-500/20 flex-row items-start">
-              <Ionicons name="help-circle-outline" size={22} color="#F59E0B" />
-              <Text className="flex-1 text-sm text-amber-200 ml-3 leading-5 font-medium">
-                If you believe this was a mistake, please contact our support
-                team. We're here to help you resolve any issues.
-              </Text>
-            </View>
-          </View>
+    <ScrollView
+      style={{ flex: 1, backgroundColor: color.canvas }}
+      contentContainerStyle={{ paddingTop: insets.top + 32, paddingHorizontal: 16, paddingBottom: insets.bottom + 24, gap: 14 }}>
+      <View className="items-center gap-3 px-4">
+        <View className="w-24 h-24 rounded-full bg-danger-soft items-center justify-center">
+          <Ionicons name="close-circle-outline" size={48} color={color.danger} />
         </View>
-      </ScrollView>
-    </View>
+        <Text className="text-2xl font-extrabold text-ink text-center">{t("rejected.title")}</Text>
+        <Text className="text-base text-ink-soft text-center">{t("rejected.body")}</Text>
+      </View>
+      <Button title={t("order.callSupport")} icon="call" onPress={() => openPhoneDialer("+919875054898")} />
+      <ListGroup>
+        <ListRow
+          icon="log-out-outline"
+          title={t("pending.logout")}
+          danger
+          onPress={async () => {
+            await logout();
+            router.replace("/auth/login");
+          }}
+        />
+      </ListGroup>
+    </ScrollView>
   );
 }
