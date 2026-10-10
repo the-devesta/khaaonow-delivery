@@ -90,10 +90,9 @@ export function transformApiOrder(raw: any) {
       ? { latitude: deliveryAddr.latitude, longitude: deliveryAddr.longitude }
       : undefined);
 
-  const earnings =
-    raw.estimatedDeliveryFee ||
-    raw.deliveryFee ||
-    Math.max(30, (raw.totalAmount || 0) * 0.1);
+  // The backend sends the rider's earning as estimatedDeliveryFee. Never
+  // guess: deliveryFee is what the customer paid, not what the rider earns.
+  const earnings = Number(raw.estimatedDeliveryFee ?? raw.earnings ?? 0) || 0;
 
   const totalAmount = raw.totalAmount || raw.total || 0;
 

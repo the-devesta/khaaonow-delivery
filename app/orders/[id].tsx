@@ -33,6 +33,7 @@ import { color } from "@/theme/tokens";
 import { formatAddressText, OrderView, transformApiOrder } from "@/utils/orderView";
 import { openPhoneDialer } from "@/utils/phone";
 import { Ionicons } from "@expo/vector-icons";
+import * as Clipboard from "expo-clipboard";
 import * as Device from "expo-device";
 import * as ExpoLocation from "expo-location";
 import * as ImagePicker from "expo-image-picker";
@@ -106,7 +107,6 @@ export default function OrderScreen() {
   const [paidNow, setPaidNow] = useState(false);
   const [handoverOpen, setHandoverOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
-  const [itemsOpen, setItemsOpen] = useState(false);
 
   const matchedActiveOrder =
     activeOrders.find((order) => order.id === id) || (activeOrder?.id === id ? activeOrder : null);
@@ -189,7 +189,7 @@ export default function OrderScreen() {
         kicker: t("order.deliverTo"),
         name: order.customerName,
         address: formatAddressText(order.customerAddress, t("order.addressUnavailable")),
-        phone: order.customerPhone || order.restaurantPhone,
+        phone: order.customerPhone,
         location: order.dropLocation,
         icon: "person" as const,
       }
@@ -197,7 +197,7 @@ export default function OrderScreen() {
         kicker: t("order.pickUpFrom"),
         name: order.restaurantName,
         address: formatAddressText(order.restaurantAddress, t("order.addressUnavailable")),
-        phone: order.restaurantPhone || order.customerPhone,
+        phone: order.restaurantPhone,
         location: order.pickupLocation,
         icon: "restaurant" as const,
       };
@@ -488,6 +488,14 @@ export default function OrderScreen() {
                 </View>
               </View>
             ) : null}
+            {/* Both numbers always visible, so the rider can dial or copy
+                even when the phone's dialer link fails. */}
+            {isActiveOrder ? (
+              <View className="border-t border-line pt-1">
+                <ContactRow icon="person" label={t("order.customer")} name={order.customerName} phone={order.customerPhone} />
+                <ContactRow icon="restaurant" label={t("order.restaurant")} name={order.restaurantName} phone={order.restaurantPhone} />
+              </View>
+            ) : null}
           </View>
         </Card>
 
@@ -508,15 +516,14 @@ export default function OrderScreen() {
         ) : null}
 
         {/* Items */}
-        <Card onPress={() => setItemsOpen((v) => !v)}>
+        <Card>
           <View className="flex-row items-center">
             <Ionicons name="receipt-outline" size={20} color={color.ink} />
             <Text className="flex-1 ml-2 text-base font-bold text-ink">
               {t("order.items", { count: order.items.length })}
             </Text>
-            <Ionicons name={itemsOpen || phase === "at_restaurant" ? "chevron-up" : "chevron-down"} size={18} color={color.muted} />
           </View>
-          {(itemsOpen || phase === "at_restaurant") && order.items.length > 0 ? (
+          {order.items.length > 0 ? (
             <View className="mt-3 gap-2">
               {order.items.map((item: { name: string; quantity: number }, i: number) => (
                 <View key={`${item.name}-${i}`} className="flex-row items-center gap-3">
@@ -593,5 +600,48 @@ export default function OrderScreen() {
         </View>
       </Modal>
     </>
+  );
+}
+
+function ContactRow({
+  icon,
+  label,
+  name,
+  phone,
+}: {
+  icon: "person" | "restaurant";
+  label: string;
+  name?: string;
+  phone?: string;
+}) {
+  const { t } = useTranslation();
+  const copy = async () => {
+    if (!phone) return;
+    await Clipboard.setStringAsync(phone);
+    Alert.alert(t("order.copied"), phone);
+  };
+  return (
+    <View className="flex-row items-center gap-3 py-2">
+      <Ionicons name={icon} size={18} color={color.muted} />
+      <View className="flex-1">
+        <Text className="text-xs text-muted">
+          {label}
+          {name ? ` · ${name}` : ""}
+        </Text>
+        <Text selectable onLongPress={copy} className="text-base font-bold text-ink">
+          {phone || t("order.noNumber")}
+        </Text>
+      </View>
+      {phone ? (
+        <>
+          <Pressable onPress={copy} hitSlop={8} accessibilityLabel={t("order.copy")} className="w-10 h-10 rounded-full bg-canvas items-center justify-center">
+            <Ionicons name="copy-outline" size={18} color={color.ink} />
+          </Pressable>
+          <Pressable onPress={() => openPhoneDialer(phone)} hitSlop={8} accessibilityLabel={t("order.call")} className="w-10 h-10 rounded-full bg-success-soft items-center justify-center">
+            <Ionicons name="call" size={18} color={color.success} />
+          </Pressable>
+        </>
+      ) : null}
+    </View>
   );
 }

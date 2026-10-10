@@ -205,10 +205,9 @@ interface OrderState {
 // ── Helper: transform a raw backend order into our Order shape ───────────────
 function transformSocketOrder(order: any): Order {
   const earnings =
+    order.estimatedDeliveryFee ??
     order.earnings ??
     order.deliveryEarnings ??
-    order.estimatedDeliveryFee ??
-    order.deliveryFee ??
     0;
 
   const _pickupLoc =
@@ -1271,10 +1270,9 @@ export const useOrderStore = create<OrderState>()(
               distance: order.deliveryInfo?.distanceKm || order.distance || 0,
               estimatedTime: "30 min",
               earnings:
+                order.estimatedDeliveryFee ??
                 order.earnings ??
                 order.deliveryEarnings ??
-                order.estimatedDeliveryFee ??
-                order.deliveryFee ??
                 0,
               totalAmount: order.totalAmount,
               items:
