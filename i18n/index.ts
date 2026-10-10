@@ -1,3 +1,4 @@
+import { riderStrings } from "./rider";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import i18n from "i18next";
 import { initReactI18next } from "react-i18next";
@@ -990,9 +991,34 @@ const resources = {
   },
 } as const;
 
+// Deep-merge the redesigned screens' strings (i18n/rider.ts) into each
+// language without touching the legacy namespaces' existing keys.
+const mergeDeep = (base: any, extra: any): any => {
+  const out = { ...base };
+  for (const [key, value] of Object.entries(extra)) {
+    out[key] =
+      value && typeof value === "object" && !Array.isArray(value)
+        ? mergeDeep(base?.[key] ?? {}, value)
+        : value;
+  }
+  return out;
+};
+
+const mergedResources = Object.fromEntries(
+  Object.entries(resources).map(([lng, bundle]) => [
+    lng,
+    {
+      translation: mergeDeep(
+        (bundle as any).translation,
+        (riderStrings as any)[lng] ?? riderStrings.en,
+      ),
+    },
+  ]),
+);
+
 i18n.use(initReactI18next).init({
   compatibilityJSON: "v4",
-  resources,
+  resources: mergedResources,
   lng: "en",
   fallbackLng: "en",
   interpolation: {

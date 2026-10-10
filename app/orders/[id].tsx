@@ -1,250 +1,93 @@
-import PaymentOptionsModal from "@/components/delivery/PaymentOptionsModal";
-import DeliveryMap, {
-  RouteInfo,
-  haversineM,
-} from "@/components/map/DeliveryMap";
+/**
+ * Active order — one clear step at a time.
+ *
+ *   Step strip  →  "Now" card (where to go, Navigate / Call)  →  money banner
+ *   →  items  →  single primary action at the bottom.
+ *
+ * Everything that isn't the next step (report delay, can't complete, SOS,
+ * support) lives behind one "Need help?" sheet. Turn-by-turn navigation is
+ * handed to Google Maps, which riders already know.
+ */
+import DeliveryMap from "@/components/map/DeliveryMap";
+import {
+  Banner,
+  BottomBar,
+  Button,
+  Card,
+  IconButton,
+  ListGroup,
+  ListRow,
+  Pill,
+  Screen,
+  rupees,
+} from "@/components/kit";
+import HandoverSheet, { HandoverResult } from "@/components/order/HandoverSheet";
+import StepStrip from "@/components/order/StepStrip";
 import { useLocationTracking } from "@/hooks/useLocationTracking";
-import ActionFooter from "@/components/orders/ActionFooter";
 import { ApiService } from "@/services/api";
 import { subscribeToOrderPayment } from "@/services/realtime.service";
 import { socketService } from "@/services/socket";
 import { uploadImageToFirebase } from "@/services/storage";
 import { Location, useOrderStore } from "@/store/orders";
+import { color } from "@/theme/tokens";
+import { formatAddressText, OrderView, transformApiOrder } from "@/utils/orderView";
 import { openPhoneDialer } from "@/utils/phone";
-import {
-  BottomSheetBackdrop,
-  BottomSheetModal,
-  BottomSheetView,
-} from "@gorhom/bottom-sheet";
 import { Ionicons } from "@expo/vector-icons";
-import * as Clipboard from "expo-clipboard";
 import * as Device from "expo-device";
 import * as ExpoLocation from "expo-location";
 import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  JSXElementConstructor,
-  Key,
-  ReactElement,
-  ReactNode,
-  ReactPortal,
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   Linking,
+  Modal,
   Platform,
+  Pressable,
   RefreshControl,
-  ScrollView,
-  StyleSheet,
   Text,
-  TouchableOpacity,
   View,
 } from "react-native";
-import { useTranslation } from "react-i18next";
-import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const STEPS = [
-  { labelKey: "orderDetail.accepted", icon: "checkmark-done-outline" },
-  { labelKey: "orderDetail.atRestaurant", icon: "restaurant-outline" },
-  { labelKey: "orderDetail.pickedUp", icon: "bicycle-outline" },
-  { labelKey: "orderDetail.arriving", icon: "location-outline" },
-];
+type Phase = "to_restaurant" | "at_restaurant" | "to_customer" | "at_customer" | "returning" | "done";
 
-const CONTACT_SHEET_SNAP_POINTS = ["34%"];
-
-const debugPaymentSheet = (message: string, details?: Record<string, unknown>) => {
-  if (__DEV__) {
-    console.log(`[PaymentSheetDebug] ${message}`, details ?? "");
+const phaseOf = (status?: string): Phase => {
+  switch (status) {
+    case "delivery_partner_reached":
+      return "at_restaurant";
+    case "delivery_partner_picked_up":
+    case "picked_up":
+      return "to_customer";
+    case "delivery_partner_reached_user_dest":
+    case "on_the_way":
+      return "at_customer";
+    case "returning_to_restaurant":
+      return "returning";
+    case "delivered":
+    case "cancelled":
+      return "done";
+    default:
+      return "to_restaurant";
   }
 };
 
-const renderContactBackdrop = (props: any) => (
-  <BottomSheetBackdrop
-    {...props}
-    appearsOnIndex={0}
-    disappearsOnIndex={-1}
-    opacity={0.45}
-    pressBehavior="close"
-  />
-);
+const STEP_INDEX: Record<Phase, number> = {
+  to_restaurant: 0,
+  at_restaurant: 1,
+  to_customer: 2,
+  at_customer: 3,
+  returning: 1,
+  done: 4,
+};
 
-function formatAddressText(
-  address: string | Record<string, any> | undefined | null,
-  fallback = "Address unavailable",
-) {
-  if (!address) return fallback;
-  if (typeof address === "string") return address || fallback;
-  const a = address as any;
-  if (a.fullAddress) return a.fullAddress;
-  const parts = [a.street, a.city, a.state, a.postalCode].filter(Boolean);
-  return parts.length > 0 ? parts.join(", ") : fallback;
-}
-
-// ── Navigation helpers ────────────────────────────────────────────────────
-
-function getManeuverIcon(
-  maneuver?: string,
-): React.ComponentProps<typeof Ionicons>["name"] {
-  switch (maneuver) {
-    case "turn-left":
-      return "arrow-back";
-    case "turn-right":
-      return "arrow-forward";
-    case "turn-sharp-left":
-      return "return-down-back";
-    case "turn-sharp-right":
-      return "return-down-forward";
-    case "uturn-left":
-    case "uturn-right":
-      return "refresh";
-    case "roundabout-left":
-    case "roundabout-right":
-      return "sync-circle";
-    case "merge":
-      return "git-branch";
-    default:
-      return "arrow-up";
-  }
-}
-
-/** Parse any backend location shape into { latitude, longitude } */
-function parseLocation(loc: any): Location | undefined {
-  if (!loc) return undefined;
-  if (Array.isArray(loc)) {
-    if (loc.length >= 2 && typeof loc[0] === "number") {
-      return { latitude: loc[1], longitude: loc[0] };
-    }
-    return undefined;
-  }
-  if (typeof loc !== "object") return undefined;
-  // GeoJSON { type: "Point", coordinates: [lng, lat] }
-  if (Array.isArray(loc.coordinates) && loc.coordinates.length >= 2) {
-    return { latitude: loc.coordinates[1], longitude: loc.coordinates[0] };
-  }
-  if (typeof loc.latitude === "number" && typeof loc.longitude === "number") {
-    return { latitude: loc.latitude, longitude: loc.longitude };
-  }
-  if (typeof loc.lat === "number" && typeof loc.lng === "number") {
-    return { latitude: loc.lat, longitude: loc.lng };
-  }
-  return undefined;
-}
-
-/** Transform raw API order response to typed order object */
-function transformApiOrder(raw: any) {
-  // restaurant can come as populated object (from API) or as restaurantId
-  const restaurant = raw.restaurant || raw.restaurantId || {};
-  const customer = raw.customer || raw.userId || {};
-  const deliveryAddr = raw.deliveryAddress || {};
-  const restaurantAddr = raw.restaurantAddress || {};
-
-  const restaurantName =
-    restaurant?.restaurantName ||
-    restaurant?.name ||
-    restaurantAddr?.name ||
-    "Unknown Restaurant";
-  const restaurantPhone =
-    restaurant?.phone ||
-    restaurant?.phoneNumber ||
-    restaurant?.mobile ||
-    restaurant?.ownerPhone ||
-    restaurantAddr?.phone ||
-    "";
-
-  const restaurantAddress =
-    restaurant?.address?.street ||
-    restaurant?.address?.fullAddress ||
-    restaurantAddr?.fullAddress ||
-    restaurantAddr?.street ||
-    "";
-
-  const customerName = customer?.name || "Customer";
-  const customerPhone = customer?.phone || "";
-  const customerAddress =
-    deliveryAddr?.fullAddress || deliveryAddr?.street || "";
-
-  const pickupLocation =
-    parseLocation(restaurant?.location) ??
-    parseLocation(restaurant?.address?.location) ??
-    parseLocation(restaurant?.address?.coordinates) ??
-    (restaurantAddr?.latitude != null
-      ? {
-          latitude: restaurantAddr.latitude,
-          longitude: restaurantAddr.longitude,
-        }
-      : undefined);
-
-  const dropLocation =
-    parseLocation(deliveryAddr?.location) ??
-    parseLocation(deliveryAddr?.coordinates) ??
-    (deliveryAddr?.latitude != null
-      ? { latitude: deliveryAddr.latitude, longitude: deliveryAddr.longitude }
-      : undefined);
-
-  const earnings =
-    raw.estimatedDeliveryFee ||
-    raw.deliveryFee ||
-    Math.max(30, (raw.totalAmount || 0) * 0.1);
-
-  const totalAmount = raw.totalAmount || raw.total || 0;
-
-  // Determine payment category for the delivery UI logic
-  const rawPaymentMethod: string = raw.paymentMethod || "cash";
-  const paymentType =
-    rawPaymentMethod === "card" ||
-    rawPaymentMethod === "razorpay" ||
-    rawPaymentMethod === "online"
-      ? ("online" as const)
-      : ("cash" as const);
-
-  return {
-    id: raw.id || raw._id,
-    orderNumber: raw.orderNumber || raw._id || raw.id || "",
-    status: raw.status,
-    restaurantName,
-    restaurantPhone,
-    restaurantAddress,
-    customerName,
-    customerPhone,
-    customerAddress,
-    pickupLocation,
-    dropLocation,
-    earnings,
-    totalAmount,
-    returnReason:
-      raw.status === "returning_to_restaurant"
-        ? raw.pendingDecision?.reason
-        : undefined,
-    distance: raw.deliveryInfo?.distanceKm || 0,
-    paymentType,
-    rawPaymentMethod,
-    paymentStatus: raw.paymentStatus || "pending",
-    items:
-      raw.items?.map((item: any) => ({
-        name: item.food?.name || item.name || "Item",
-        quantity: item.quantity,
-      })) || [],
-    createdAt: new Date(raw.createdAt),
-    estimatedTime: (() => {
-      const raw2 = raw.deliveryInfo?.durationMinutes;
-      if (!raw2) return "30 min";
-      const mins = raw2 > 120 ? Math.ceil(raw2 / 60) : Math.ceil(raw2);
-      return `${mins} min`;
-    })(),
-  };
-}
-
-export default function OrderDetailsScreen() {
+export default function OrderScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
+  const insets = useSafeAreaInsets();
   const {
     activeOrder,
     activeOrders,
@@ -253,1778 +96,502 @@ export default function OrderDetailsScreen() {
     releaseActiveOrder,
     setDriverLocation,
     confirmReturnedToRestaurant,
-  } =
-    useOrderStore();
+  } = useOrderStore();
   const locationTracking = useLocationTracking();
 
-  const [loading, setLoading] = useState(false);
-  const [refreshing, setRefreshing] = useState(false);
-  const [paymentModalVisible, setPaymentModalVisible] = useState(false);
-  const [paymentConfirmed, setPaymentConfirmed] = useState(false);
-  const [proofUploading, setProofUploading] = useState(false);
-  const [reportingIssue, setReportingIssue] = useState(false);
-  const [confirmingReturn, setConfirmingReturn] = useState(false);
-  const [apiOrder, setApiOrder] = useState<ReturnType<
-    typeof transformApiOrder
-  > | null>(null);
+  const [apiOrder, setApiOrder] = useState<OrderView | null>(null);
   const [driverLocation, setDriverLoc] = useState<Location | null>(null);
-  const [isMapCollapsed, setIsMapCollapsed] = useState(false);
-  const [itemsExpanded, setItemsExpanded] = useState(false);
-  const [phoneCopied, setPhoneCopied] = useState(false);
-  const contactSheetRef = useRef<BottomSheetModal>(null);
-  const mapHeightAnim = useRef(new Animated.Value(1)).current; // 1 = full, 0 = collapsed
-
-  // Navigation mode state
-  const [isNavigating, setIsNavigating] = useState(false);
-  const [routeInfo, setRouteInfo] = useState<RouteInfo>({
-    steps: [],
-    etaMin: 0,
-    distKm: 0,
-  });
-  const [currentStepIdx, setCurrentStepIdx] = useState(0);
-  const handleRouteLoaded = useCallback((info: RouteInfo) => {
-    setRouteInfo((current) => {
-      const sameEta = current.etaMin === info.etaMin;
-      const sameDist = current.distKm === info.distKm;
-      const sameSteps = current.steps.length === info.steps.length;
-      return sameEta && sameDist && sameSteps ? current : info;
-    });
-    setCurrentStepIdx((current) => (current === 0 ? current : 0));
-  }, []);
+  const [busy, setBusy] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [paidNow, setPaidNow] = useState(false);
+  const [handoverOpen, setHandoverOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+  const [itemsOpen, setItemsOpen] = useState(false);
 
   const matchedActiveOrder =
-    activeOrders.find((order) => order.id === id) ||
-    (activeOrder?.id === id ? activeOrder : null);
+    activeOrders.find((order) => order.id === id) || (activeOrder?.id === id ? activeOrder : null);
   const isActiveOrder = Boolean(matchedActiveOrder);
 
-  // Fetch full order details from API (gives us properly populated restaurant/customer)
-  const fetchOrder = async () => {
+  const fetchOrder = useCallback(async () => {
     if (!id) return;
     try {
       const res = await ApiService.getOrderById(id);
-      if (res.success && res.data) {
-        setApiOrder(transformApiOrder(res.data));
-      }
+      if (res.success && res.data) setApiOrder(transformApiOrder(res.data));
     } catch (err) {
       console.error("Failed to fetch order details:", err);
     }
-  };
-
-  useEffect(() => {
-    fetchOrder();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id]);
 
-  // Join the socket room for this order so we receive payment-confirmed events
-  // when the Razorpay webhook fires (QR / Payment Link paid).
+  useEffect(() => {
+    void fetchOrder();
+  }, [fetchOrder]);
+
+  // Payment confirmations for UPI QR arrive over socket and Firebase.
   useEffect(() => {
     if (!id) return;
     socketService.joinOrderRoom(id);
-
-    const handlePaymentConfirmedSocket = (data: {
-      orderId: string;
-      paymentStatus: string;
-    }) => {
+    const onPaid = (data: { orderId: string }) => {
       if (data.orderId !== id) return;
-      console.log("[Socket] payment-confirmed received:", data);
-      // Refresh order so displayOrder.paymentStatus becomes "paid"
-      fetchOrder();
-      setPaymentConfirmed(true);
+      void fetchOrder();
+      setPaidNow(true);
     };
-
-    socketService.on("payment-confirmed", handlePaymentConfirmedSocket);
-
-    return () => {
-      socketService.off("payment-confirmed", handlePaymentConfirmedSocket);
-      socketService.leaveOrderRoom(id);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
-
-  useEffect(() => {
-    if (!id) return;
-
-    return subscribeToOrderPayment(id, () => {
-      console.log("[Firebase] payment-confirmed received:", id);
-      fetchOrder();
-      setPaymentConfirmed(true);
+    socketService.on("payment-confirmed", onPaid);
+    const unsubscribe = subscribeToOrderPayment(id, () => {
+      void fetchOrder();
+      setPaidNow(true);
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id]);
+    return () => {
+      socketService.off("payment-confirmed", onPaid);
+      socketService.leaveOrderRoom(id);
+      unsubscribe?.();
+    };
+  }, [id, fetchOrder]);
 
-  // Consume the shared GPS tracking hook instead of starting a second watcher
-  // on the active-order screen.
+  // Reuse the shared GPS watcher rather than starting another one here.
   useEffect(() => {
     if (!isActiveOrder || !locationTracking.currentLocation) return;
-
     setDriverLoc(locationTracking.currentLocation);
     setDriverLocation(locationTracking.currentLocation);
-  }, [
-    isActiveOrder,
-    locationTracking.currentLocation,
-    setDriverLocation,
-  ]);
+  }, [isActiveOrder, locationTracking.currentLocation, setDriverLocation]);
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await fetchOrder();
-    setRefreshing(false);
-  };
+  const order = apiOrder
+    ? {
+        ...apiOrder,
+        // The store status is more up to date than the last fetch.
+        status: isActiveOrder ? matchedActiveOrder?.status ?? apiOrder.status : apiOrder.status,
+      }
+    : null;
 
-  const openPaymentModal = useCallback(() => {
-    debugPaymentSheet("openPaymentModal called", {
-      orderId: id,
-      previousVisible: paymentModalVisible,
-    });
-    setLoading(false);
-    setPaymentModalVisible(true);
-  }, [id, paymentModalVisible]);
-
-  // Advance turn-by-turn step when driver gets close to step end-point
+  // Leave if the order can't be found at all (e.g. reassigned).
   useEffect(() => {
-    if (!isNavigating || !driverLocation || routeInfo.steps.length === 0)
+    if (apiOrder || matchedActiveOrder || !id) return;
+    const timer = setTimeout(() => router.back(), 4000);
+    return () => clearTimeout(timer);
+  }, [apiOrder, matchedActiveOrder, id, router]);
+
+  if (!order) {
+    return (
+      <View style={{ flex: 1, backgroundColor: color.canvas }} className="items-center justify-center gap-3">
+        <ActivityIndicator size="large" color={color.ink} />
+        <Text className="text-muted">{t("order.loading")}</Text>
+      </View>
+    );
+  }
+
+  const phase = phaseOf(order.status);
+  const toCustomer = phase === "to_customer" || phase === "at_customer";
+  const isCash = order.paymentType === "cash";
+  const isPaid = paidNow || order.paymentStatus === "completed" || order.paymentStatus === "paid";
+  const collectAmount = isCash && !isPaid ? order.totalAmount : 0;
+
+  const place = toCustomer
+    ? {
+        kicker: t("order.deliverTo"),
+        name: order.customerName,
+        address: formatAddressText(order.customerAddress, t("order.addressUnavailable")),
+        phone: order.customerPhone || order.restaurantPhone,
+        location: order.dropLocation,
+        icon: "person" as const,
+      }
+    : {
+        kicker: t("order.pickUpFrom"),
+        name: order.restaurantName,
+        address: formatAddressText(order.restaurantAddress, t("order.addressUnavailable")),
+        phone: order.restaurantPhone || order.customerPhone,
+        location: order.pickupLocation,
+        icon: "restaurant" as const,
+      };
+
+  const steps = [
+    { label: t("order.stepGoRestaurant"), icon: "navigate" as const },
+    { label: t("order.stepPickUp"), icon: "bag-handle" as const },
+    { label: t("order.stepGoCustomer"), icon: "bicycle" as const },
+    { label: t("order.stepHandOver"), icon: "home" as const },
+  ];
+
+  /* ------------------------------------------------------------ actions */
+
+  const openMaps = () => {
+    const dest = place.location;
+    if (!dest) {
+      Alert.alert(t("order.locationUnavailable"), t("order.locationUnavailableBody"));
       return;
-    const step = routeInfo.steps[currentStepIdx];
-    if (!step) return;
-    const dist = haversineM(driverLocation, step.endLocation);
-    if (dist < 40 && currentStepIdx < routeInfo.steps.length - 1) {
-      setCurrentStepIdx((idx) => idx + 1);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [driverLocation, isNavigating]);
-
-  const toggleMapCollapse = () => {
-    const toValue = isMapCollapsed ? 1 : 0;
-    setIsMapCollapsed(!isMapCollapsed);
-
-    Animated.spring(mapHeightAnim, {
-      toValue,
-      useNativeDriver: false,
-      tension: 50,
-      friction: 8,
-    }).start();
-  };
-
-  const openExternalNavigation = (destination?: Location) => {
-    if (!destination) {
-      Alert.alert("Location unavailable", "Destination coordinates are missing.");
-      return;
-    }
-
-    const label =
-      navPhase === "pickup"
-        ? displayOrder?.restaurantName
-        : displayOrder?.customerName;
-    const encodedLabel = encodeURIComponent(label || "KhaaoNow destination");
-    const webGoogleMapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${destination.latitude},${destination.longitude}&travelmode=driving`;
-    const nativeGoogleMapsUrl = `comgooglemaps://?daddr=${destination.latitude},${destination.longitude}&directionsmode=driving&q=${encodedLabel}`;
-
+    const web = `https://www.google.com/maps/dir/?api=1&destination=${dest.latitude},${dest.longitude}&travelmode=driving`;
+    const native = `comgooglemaps://?daddr=${dest.latitude},${dest.longitude}&directionsmode=driving`;
     if (Platform.OS === "ios") {
       Linking.canOpenURL("comgooglemaps://")
-        .then((canOpenGoogleMaps) =>
-          Linking.openURL(canOpenGoogleMaps ? nativeGoogleMapsUrl : webGoogleMapsUrl),
-        )
-        .catch(() =>
-          Alert.alert(
-            "Navigation unavailable",
-            "Could not open Google Maps on this device.",
-          ),
-        );
+        .then((ok) => Linking.openURL(ok ? native : web))
+        .catch(() => Alert.alert(t("order.mapsUnavailable")));
       return;
     }
-
-    Linking.openURL(webGoogleMapsUrl).catch(() =>
-      Alert.alert(
-        "Navigation unavailable",
-        "Could not open Google Maps on this device.",
-      ),
-    );
+    Linking.openURL(web).catch(() => Alert.alert(t("order.mapsUnavailable")));
   };
 
-  const triggerSOS = () => {
-    Alert.alert(
-      "Emergency SOS",
-      "Call emergency services now? Use this only for urgent rider safety issues.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Call 112",
-          style: "destructive",
-          onPress: () => openPhoneDialer("112"),
-        },
-      ],
-    );
+  const call = () => {
+    if (!place.phone) {
+      Alert.alert(t("order.phoneUnavailable"));
+      return;
+    }
+    openPhoneDialer(place.phone);
+  };
+
+  const advance = async (next: "delivery_partner_reached" | "delivery_partner_picked_up" | "delivery_partner_reached_user_dest") => {
+    setBusy(true);
+    try {
+      const ok = await updateOrderStatus(next, { orderId: String(order.id) });
+      if (ok) await fetchOrder();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const ensureLocation = async (): Promise<Location | null> => {
+    if (driverLocation) return driverLocation;
+    const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(t("order.locationNeeded"), t("order.locationNeededBody"));
+      return null;
+    }
+    const pos = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High });
+    const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
+    setDriverLoc(loc);
+    setDriverLocation(loc);
+    return loc;
+  };
+
+  const takeProofPhoto = async (): Promise<string | null> => {
+    if (!Device.isDevice) {
+      // Simulators have no camera; pick from the library instead.
+      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (perm.status !== "granted") return null;
+      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.65 });
+      if (res.canceled || !res.assets?.[0]?.uri) return null;
+      return uploadImageToFirebase(res.assets[0].uri, "delivery_proofs");
+    }
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (perm.status !== "granted") {
+      Alert.alert(t("order.cameraNeeded"), t("order.cameraNeededBody"));
+      return null;
+    }
+    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.65 });
+    if (res.canceled || !res.assets?.[0]?.uri) return null;
+    return uploadImageToFirebase(res.assets[0].uri, "delivery_proofs");
+  };
+
+  const finishDelivery = async ({ otpVerified, needPhoto }: HandoverResult) => {
+    setHandoverOpen(false);
+    if (otpVerified) setPaidNow(true);
+    setBusy(true);
+    try {
+      const loc = await ensureLocation();
+      if (!loc) return;
+
+      let proofPhotoUrl: string | undefined;
+      if (needPhoto) {
+        proofPhotoUrl = (await takeProofPhoto()) ?? undefined;
+        if (!proofPhotoUrl) return;
+      } else {
+        // A verified code is the proof. If the server still asks for a
+        // photo (older backend), fall back to taking one.
+        const res = await ApiService.updateOrderStatus(String(order.id), "delivered", {
+          currentLocation: loc,
+        });
+        if (res.success) {
+          completeOrder(String(order.id));
+          router.replace({ pathname: "/(tabs)", params: { delivered: String(order.id) } });
+          return;
+        }
+        if (!/proof|photo/i.test(res.message || "")) {
+          Alert.alert(t("order.couldNotComplete"), res.message || t("common.tryAgain"));
+          return;
+        }
+        proofPhotoUrl = (await takeProofPhoto()) ?? undefined;
+        if (!proofPhotoUrl) return;
+      }
+
+      const ok = await updateOrderStatus("delivered", {
+        orderId: String(order.id),
+        currentLocation: loc,
+        proofPhotoUrl,
+      });
+      if (ok) {
+        completeOrder(String(order.id));
+        router.replace({ pathname: "/(tabs)", params: { delivered: String(order.id) } });
+      }
+    } catch (error: any) {
+      Alert.alert(t("order.couldNotComplete"), error?.message || t("common.tryAgain"));
+    } finally {
+      setBusy(false);
+    }
   };
 
   const reportDelay = () => {
-    if (!displayOrder?.id) return;
-    Alert.alert("Report Delay", "Notify customer and support that this delivery is delayed?", [
-      { text: "Cancel", style: "cancel" },
+    setHelpOpen(false);
+    Alert.alert(t("order.reportDelay"), t("order.reportDelayBody"), [
+      { text: t("common.cancel"), style: "cancel" },
       {
-        text: "Report",
+        text: t("order.report"),
         onPress: async () => {
-          setReportingIssue(true);
-          try {
-            const res = await ApiService.reportDeliveryDelay(
-              String(displayOrder.id),
-              "Traffic or operational delay",
-            );
-            Alert.alert(
-              res.success ? "Delay Reported" : "Failed",
-              res.message || "Delay update sent.",
-            );
-          } finally {
-            setReportingIssue(false);
+          const res = await ApiService.reportDeliveryDelay(String(order.id), "Traffic or operational delay");
+          Alert.alert(res.success ? t("order.delayReported") : t("common.failed"), res.message || "");
+        },
+      },
+    ]);
+  };
+
+  const cantComplete = () => {
+    setHelpOpen(false);
+    Alert.alert(t("order.cantComplete"), t("order.cantCompleteBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("order.releaseOrder"),
+        style: "destructive",
+        onPress: async () => {
+          const res = await ApiService.requestOrderReassignment(String(order.id), "Rider unable to continue delivery");
+          if (res.success) {
+            releaseActiveOrder(String(order.id));
+            router.replace("/(tabs)");
+          } else {
+            Alert.alert(t("common.failed"), res.message || t("common.tryAgain"));
           }
         },
       },
     ]);
   };
 
-  const requestReassignment = () => {
-    if (!displayOrder?.id) return;
-    Alert.alert(
-      "Request Reassignment",
-      "Use this only if you cannot complete the delivery. The order will be released for another rider.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Release Order",
-          style: "destructive",
-          onPress: async () => {
-            setReportingIssue(true);
-            try {
-              const res = await ApiService.requestOrderReassignment(
-                String(displayOrder.id),
-                "Rider unable to continue delivery",
-              );
-              if (res.success) {
-                releaseActiveOrder(String(displayOrder.id));
-                Alert.alert(
-                  "Reassignment Requested",
-                  "Order released for another rider.",
-                  [{ text: "OK", onPress: () => router.replace("/(tabs)") }],
-                );
-              } else {
-                Alert.alert("Failed", res.message || "Could not release order.");
-              }
-            } finally {
-              setReportingIssue(false);
-            }
-          },
-        },
-      ],
-    );
-  };
-
   const confirmReturned = () => {
-    if (!displayOrder?.id) return;
-    Alert.alert(
-      "Confirm Return",
-      "Confirm you've handed this order back to the restaurant?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Confirm",
-          onPress: async () => {
-            setConfirmingReturn(true);
-            try {
-              const ok = await confirmReturnedToRestaurant(String(displayOrder.id));
-              if (ok) {
-                router.replace("/(tabs)");
-              } else {
-                Alert.alert("Failed", "Could not confirm the return. Try again.");
-              }
-            } finally {
-              setConfirmingReturn(false);
-            }
-          },
+    Alert.alert(t("order.confirmReturn"), t("order.confirmReturnBody"), [
+      { text: t("common.cancel"), style: "cancel" },
+      {
+        text: t("common.confirm"),
+        onPress: async () => {
+          setBusy(true);
+          try {
+            const ok = await confirmReturnedToRestaurant(String(order.id));
+            if (ok) router.replace("/(tabs)");
+            else Alert.alert(t("common.failed"), t("common.tryAgain"));
+          } finally {
+            setBusy(false);
+          }
         },
-      ],
-    );
+      },
+    ]);
   };
 
-  // Merge: prefer API order details for display, but use local store status for flow
-  const displayOrder = apiOrder
-    ? {
-        ...apiOrder,
-        // Always use local store status for the flow logic (it's more up-to-date)
-        status: isActiveOrder
-          ? (matchedActiveOrder?.status ?? apiOrder.status)
-          : apiOrder.status,
-      }
-    : matchedActiveOrder
-      ? matchedActiveOrder
-      : null;
+  /* ------------------------------------------------------- primary action */
 
-  // Navigate back if order truly not found anymore
-  useEffect(() => {
-    if (!apiOrder && !matchedActiveOrder && id) {
-      // Give fetchOrder a chance first — only go back if both are null after a beat
-      const timer = setTimeout(() => {
-        if (!apiOrder && !matchedActiveOrder) {
-          router.back();
-        }
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [apiOrder, matchedActiveOrder, id, router]);
+  const primary: { title: string; icon: React.ComponentProps<typeof Ionicons>["name"]; variant: "primary" | "success" | "danger"; onPress: () => void } | null =
+    !isActiveOrder
+      ? null
+      : phase === "to_restaurant"
+        ? { title: t("order.reachedRestaurant"), icon: "location", variant: "primary", onPress: () => advance("delivery_partner_reached") }
+        : phase === "at_restaurant"
+          ? { title: t("order.pickedUp"), icon: "bag-check", variant: "primary", onPress: () => advance("delivery_partner_picked_up") }
+          : phase === "to_customer"
+            ? { title: t("order.reachedCustomer"), icon: "location", variant: "primary", onPress: () => advance("delivery_partner_reached_user_dest") }
+            : phase === "at_customer"
+              ? {
+                  title: collectAmount ? t("order.collectAndDeliver", { amount: rupees(collectAmount) }) : t("order.handOver"),
+                  icon: "checkmark-circle",
+                  variant: "success",
+                  onPress: () => setHandoverOpen(true),
+                }
+              : phase === "returning"
+                ? { title: t("order.returnedToRestaurant"), icon: "return-up-back", variant: "danger", onPress: confirmReturned }
+                : null;
 
-  if (!displayOrder) {
-    return (
-      <SafeAreaView className="flex-1 bg-gray-50 items-center justify-center">
-        <ActivityIndicator size="large" color="#F59E0B" />
-        <Text className="text-gray-600 mt-4 font-medium">
-          Loading order details...
-        </Text>
-      </SafeAreaView>
-    );
-  }
-
-  const getCurrentStep = () => {
-    switch (displayOrder.status) {
-      case "delivery_partner_accepted":
-      case "accepted":
-        return 1;
-      case "delivery_partner_reached":
-        return 2;
-      case "delivery_partner_picked_up":
-      case "picked_up":
-        return 3;
-      case "delivery_partner_reached_user_dest":
-      case "on_the_way":
-        return 4;
-      case "delivered":
-        return 5;
-      default:
-        return 1;
-    }
-  };
-
-  const getActionLabel = () => {
-    switch (displayOrder.status) {
-      case "delivery_partner_accepted":
-      case "accepted":
-        return t("orderDetail.reachedRestaurant");
-      case "delivery_partner_reached":
-        return t("orderDetail.orderPickedUp");
-      case "delivery_partner_picked_up":
-      case "picked_up":
-        return t("orderDetail.reachedDropoff");
-      case "delivery_partner_reached_user_dest":
-      case "on_the_way":
-        if (
-          displayOrder?.paymentType === "online" ||
-          paymentConfirmed ||
-          displayOrder?.paymentStatus === "completed" ||
-          displayOrder?.paymentStatus === "paid"
-        ) {
-          return t("orderDetail.completeOrder");
-        }
-        return t("payment.collectPayment");
-      default:
-        return t("orderDetail.continue");
-    }
-  };
-
-  const isPaymentAlreadySettled =
-    displayOrder?.paymentType === "online" ||
-    paymentConfirmed ||
-    displayOrder?.paymentStatus === "completed" ||
-    displayOrder?.paymentStatus === "paid";
-
-  const isCollectPaymentAction =
-    (displayOrder.status === "delivery_partner_reached_user_dest" ||
-      displayOrder.status === "on_the_way") &&
-    !isPaymentAlreadySettled;
-
-  const handlePrimaryActionPress = () => {
-    debugPaymentSheet("primary action pressed", {
-      orderId: displayOrder.id,
-      orderNumber: (displayOrder as any).orderNumber,
-      status: displayOrder.status,
-      paymentType: displayOrder.paymentType,
-      rawPaymentMethod: (displayOrder as any).rawPaymentMethod,
-      paymentStatus: (displayOrder as any).paymentStatus,
-      paymentConfirmed,
-      isPaymentAlreadySettled,
-      isCollectPaymentAction,
-      actionLabel: getActionLabel(),
-      loading,
-      paymentModalVisible,
-      isNavigating,
-    });
-    if (isCollectPaymentAction) {
-      openPaymentModal();
-      return;
-    }
-
-    void handleAction();
-  };
-
-  const handleAction = async () => {
-    if (!isActiveOrder) return;
-
-    setLoading(true);
-
-    try {
-      switch (displayOrder.status) {
-        case "delivery_partner_accepted":
-        case "accepted":
-          await updateOrderStatus("delivery_partner_reached", {
-            orderId: String(displayOrder.id),
-          });
-          break;
-        case "delivery_partner_reached":
-          await updateOrderStatus("delivery_partner_picked_up", {
-            orderId: String(displayOrder.id),
-          });
-          break;
-        case "delivery_partner_picked_up":
-        case "picked_up":
-          await updateOrderStatus("delivery_partner_reached_user_dest", {
-            orderId: String(displayOrder.id),
-          });
-          break;
-        case "delivery_partner_reached_user_dest":
-        case "on_the_way":
-          // Always verify customer handoff OTP before proof/photo completion.
-          debugPaymentSheet("handleAction reached collect-payment status", {
-            orderId: displayOrder.id,
-            orderNumber: (displayOrder as any).orderNumber,
-            status: displayOrder.status,
-            paymentType: displayOrder.paymentType,
-            rawPaymentMethod: (displayOrder as any).rawPaymentMethod,
-            paymentStatus: (displayOrder as any).paymentStatus,
-          });
-          openPaymentModal();
-          return;
-      }
-      // Refresh order display after status change
-      await fetchOrder();
-    } catch (error) {
-      console.error("Update order status error:", error);
-      Alert.alert("Error", "Failed to update order status. Please try again.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handlePaymentConfirmed = async (reusedProofPhotoUrl?: string) => {
-    setPaymentModalVisible(false);
-    setPaymentConfirmed(true);
-    await completeDeliveryWithProof(reusedProofPhotoUrl);
-  };
-
-  const ensureCurrentLocation = async (): Promise<Location | null> => {
-    if (driverLocation) return driverLocation;
-
-    const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Location Required", "Enable location to verify pickup/drop geofence.");
-      return null;
-    }
-
-    const pos = await ExpoLocation.getCurrentPositionAsync({
-      accuracy: ExpoLocation.Accuracy.High,
-    });
-    const loc = {
-      latitude: pos.coords.latitude,
-      longitude: pos.coords.longitude,
-    };
-    setDriverLoc(loc);
-    setDriverLocation(loc);
-    return loc;
-  };
-
-  const captureProofPhoto = async (): Promise<string | null> => {
-    const usePhotoLibraryOnly = !Device.isDevice;
-
-    if (usePhotoLibraryOnly) {
-      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (status !== "granted") {
-        Alert.alert(
-          "Photos Required",
-          "Select a delivery proof image from the photo library to complete this order.",
-        );
-        return null;
-      }
-
-      Alert.alert(
-        "Simulator Mode",
-        "The iOS simulator does not provide a real camera. Please choose a proof image from Photos.",
-      );
-
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: false,
-        quality: 0.65,
-      });
-
-      if (result.canceled || !result.assets?.[0]?.uri) return null;
-      return uploadImageToFirebase(result.assets[0].uri, "delivery_proofs");
-    }
-
-    const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Camera Required",
-        "Take a delivery proof photo to complete this order.",
-      );
-      return null;
-    }
-
-    const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ["images"],
-      allowsEditing: false,
-      quality: 0.65,
-    });
-
-    if (result.canceled || !result.assets?.[0]?.uri) return null;
-    return uploadImageToFirebase(result.assets[0].uri, "delivery_proofs");
-  };
-
-  const completeDeliveryWithProof = async (reusedProofPhotoUrl?: string) => {
-    setLoading(true);
-    setProofUploading(true);
-    try {
-      const loc = await ensureCurrentLocation();
-      if (!loc) return;
-
-      // If the rider already photographed the payment confirmation (admin-QR
-      // path), reuse that instead of asking for a second, near-identical
-      // photo of the same handoff.
-      const proofPhotoUrl = reusedProofPhotoUrl || (await captureProofPhoto());
-      if (!proofPhotoUrl) return;
-
-      const success = await updateOrderStatus("delivered", {
-        orderId: String(displayOrder?.id || id),
-        currentLocation: loc,
-        proofPhotoUrl,
-      });
-
-      if (success) {
-        completeOrder(String(displayOrder?.id || id));
-        Alert.alert("🎉 Success", "Order delivered with proof captured.", [
-          {
-            text: "OK",
-            onPress: () => setTimeout(() => router.replace("/(tabs)"), 100),
-          },
-        ]);
-      } else {
-        setPaymentConfirmed(false);
-      }
-    } catch (error: any) {
-      console.error("Complete delivery proof error:", error);
-      Alert.alert(
-        "Delivery Proof Failed",
-        error?.message || "Failed to complete delivery. Please try again.",
-      );
-      setPaymentConfirmed(false);
-    } finally {
-      setProofUploading(false);
-      setLoading(false);
-    }
-  };
-
-  const currentStep = getCurrentStep();
-
-  // Which destination phase are we navigating toward?
-  const navPhase: "pickup" | "dropoff" =
-    currentStep >= 3 ||
-    (displayOrder?.status &&
-      [
-        "delivery_partner_picked_up",
-        "picked_up",
-        "delivery_partner_reached_user_dest",
-        "on_the_way",
-      ].includes(displayOrder.status))
-      ? "dropoff"
-      : "pickup";
-  const phaseTitle =
-    displayOrder.status === "delivered"
-      ? t("orderDetail.deliveryCompleted")
-      : navPhase === "pickup"
-        ? t("orderDetail.pickupFromRestaurant")
-        : t("orderDetail.deliverToCustomer");
-  const phaseName =
-    navPhase === "pickup" ? displayOrder.restaurantName : displayOrder.customerName;
-  const phaseAddress =
-    navPhase === "pickup"
-      ? formatAddressText(displayOrder.restaurantAddress, t("orderDetail.addressUnavailable"))
-      : formatAddressText(displayOrder.customerAddress, t("orderDetail.addressUnavailable"));
-  const routeEtaText =
-    routeInfo.etaMin > 0 && routeInfo.distKm > 0
-      ? `${routeInfo.etaMin} min • ${routeInfo.distKm} km`
-      : t("orderDetail.calculatingRoute");
-  const statusText =
-    currentStep <= 1
-      ? t("orderDetail.accepted")
-      : currentStep === 2
-        ? t("orderDetail.atRestaurant")
-        : currentStep === 3
-          ? t("orderDetail.pickedUp")
-          : currentStep === 4
-            ? t("orderDetail.arriving")
-            : t("orderDetail.delivered");
-  const contactName =
-    navPhase === "pickup" ? displayOrder.restaurantName : displayOrder.customerName;
-  const contactRole = navPhase === "pickup" ? "Restaurant" : "Customer";
-  const contactPhone =
-    navPhase === "pickup"
-      ? (displayOrder as any).restaurantPhone || displayOrder.customerPhone
-      : displayOrder.customerPhone || (displayOrder as any).restaurantPhone;
-
-  const openContactSheet = () => {
-    if (!contactPhone) {
-      Alert.alert("Phone unavailable", `${contactRole} phone number is not available.`);
-      return;
-    }
-    contactSheetRef.current?.present();
-  };
-
-  const callContact = () => {
-    if (!contactPhone) return;
-    openPhoneDialer(contactPhone);
-  };
-
-  const copyContactPhone = async () => {
-    if (!contactPhone) return;
-    await Clipboard.setStringAsync(contactPhone);
-    setPhoneCopied(true);
-    setTimeout(() => setPhoneCopied(false), 2000);
-  };
-
-  const orderOverlays = (
-    <>
-      {/* Payment sheet — must be mounted in normal and fullscreen navigation modes. */}
-      <PaymentOptionsModal
-        visible={paymentModalVisible}
-        orderId={String(displayOrder.id)}
-        orderNumber={String((displayOrder as any).orderNumber || displayOrder.id)}
-        totalAmount={(displayOrder as any).totalAmount || 0}
-        paymentMethod={
-          (displayOrder as any).rawPaymentMethod || displayOrder.paymentType
-        }
-        paymentStatus={(displayOrder as any).paymentStatus || "pending"}
-        onPaymentConfirmed={handlePaymentConfirmed}
-        onClose={() => {
-          debugPaymentSheet("payment modal onClose", {
-            orderId: displayOrder.id,
-            orderNumber: (displayOrder as any).orderNumber,
-          });
-          setPaymentModalVisible(false);
-        }}
-      />
-
-      <BottomSheetModal
-        ref={contactSheetRef}
-        snapPoints={CONTACT_SHEET_SNAP_POINTS}
-        enablePanDownToClose
-        backdropComponent={renderContactBackdrop}
-        backgroundStyle={{ backgroundColor: "#FFFFFF", borderRadius: 28 }}
-        handleIndicatorStyle={{ backgroundColor: "#D1D5DB", width: 42 }}>
-        <BottomSheetView style={orderStyles.contactSheetContent}>
-          <View style={orderStyles.contactSheetIcon}>
-            <Ionicons name="call" size={26} color="#FF6A00" />
-          </View>
-          <Text style={orderStyles.contactSheetTitle}>
-            Call {contactRole}
-          </Text>
-          <Text style={orderStyles.contactSheetName} numberOfLines={1}>
-            {contactName}
-          </Text>
-          <TouchableOpacity
-            onPress={callContact}
-            activeOpacity={0.85}
-            style={orderStyles.contactSheetCallButton}>
-            <Ionicons name="call" size={18} color="#FFFFFF" />
-            <Text style={orderStyles.contactSheetCallButtonText}>Call now</Text>
-          </TouchableOpacity>
-          <View style={orderStyles.contactSheetPhoneRow}>
-            <Text selectable style={orderStyles.contactSheetPhone}>
-              {contactPhone || "Phone number unavailable"}
-            </Text>
-            {contactPhone && (
-              <TouchableOpacity
-                onPress={copyContactPhone}
-                activeOpacity={0.7}
-                style={orderStyles.contactSheetCopyButton}>
-                <Ionicons
-                  name={phoneCopied ? "checkmark" : "copy-outline"}
-                  size={16}
-                  color={phoneCopied ? "#10B981" : "#6B7280"}
-                />
-                <Text
-                  style={[
-                    orderStyles.contactSheetCopyButtonText,
-                    phoneCopied && { color: "#10B981" },
-                  ]}>
-                  {phoneCopied ? "Copied" : "Copy"}
-                </Text>
-              </TouchableOpacity>
-            )}
-          </View>
-          <Text style={orderStyles.contactSheetHint}>
-            If the call button does not open, copy the number and dial manually.
-          </Text>
-        </BottomSheetView>
-      </BottomSheetModal>
-    </>
-  );
-
-  // Use real GPS for driver marker; fall back to null (shows no driver pin)
-  const safeDriverLoc = driverLocation;
-
-  // ── Full-screen Navigation Mode ──────────────────────────────────────────
-  if (isNavigating && displayOrder && isActiveOrder) {
-    const step = routeInfo.steps[currentStepIdx];
-    const phaseName =
-      navPhase === "pickup"
-        ? displayOrder.restaurantName
-        : displayOrder.customerName;
-    return (
-      <View style={{ flex: 1 }}>
-        {/* Map fills entire screen */}
-        <DeliveryMap
-          driverLocation={safeDriverLoc}
-          pickupLocation={displayOrder.pickupLocation}
-          dropLocation={displayOrder.dropLocation}
-          showRoute
-          navigationMode
-          activePhase={navPhase}
-          onRouteLoaded={handleRouteLoaded}
-        />
-
-        {/* ── Top: instruction card ── */}
-        <SafeAreaView style={navStyles.topOverlay} edges={["top"]}>
-          <View style={navStyles.instructionCard}>
-            <View style={navStyles.maneuverCircle}>
-              <Ionicons
-                name={getManeuverIcon(step?.maneuver)}
-                size={26}
-                color="#fff"
-              />
-            </View>
-            <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={navStyles.instructionText} numberOfLines={2}>
-                {step?.instruction ??
-                  (navPhase === "pickup"
-                    ? "Head to restaurant"
-                    : "Head to customer")}
-              </Text>
-              {step && (
-                <Text style={navStyles.stepDist}>
-                  {step.distanceText} ahead
-                </Text>
-              )}
-            </View>
-          </View>
-        </SafeAreaView>
-
-        {/* ── Bottom: ETA + action ── */}
-        <View
-          style={[
-            navStyles.bottomSheet,
-            { paddingBottom: Math.max(insets.bottom + 12, 22) },
-          ]}>
-          {/* ETA row */}
-          <View style={navStyles.etaRow}>
-            <View style={navStyles.etaBlock}>
-              <Text style={navStyles.etaValue}>
-                {routeInfo.etaMin > 0 ? routeInfo.etaMin : "--"}
-              </Text>
-              <Text style={navStyles.etaLabel}>min</Text>
-            </View>
-            <View style={navStyles.etaDivider} />
-            <View style={navStyles.etaBlock}>
-              <Text style={navStyles.etaValue}>
-                {routeInfo.distKm > 0 ? routeInfo.distKm : "--"}
-              </Text>
-              <Text style={navStyles.etaLabel}>km</Text>
-            </View>
-            <View style={{ flex: 1 }} />
-            <View style={navStyles.phaseTag}>
-              <Ionicons
-                name={navPhase === "pickup" ? "restaurant" : "person"}
-                size={13}
-                color="#FF6A00"
-                style={{ marginRight: 4 }}
-              />
-              <Text style={navStyles.phaseText} numberOfLines={1}>
-                {phaseName}
-              </Text>
-            </View>
-          </View>
-
-          {/* Buttons */}
-          <View style={navStyles.btnRow}>
-            <TouchableOpacity
-              style={navStyles.exitBtn}
-              onPress={() => setIsNavigating(false)}
-              activeOpacity={0.7}>
-              <Ionicons name="close" size={22} color="#1F2937" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={navStyles.actionBtn}
-              onPress={handlePrimaryActionPress}
-              disabled={loading}
-              activeOpacity={0.85}>
-              {loading ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={navStyles.actionBtnText}>{getActionLabel()}</Text>
-              )}
-            </TouchableOpacity>
-          </View>
-        </View>
-        {orderOverlays}
-      </View>
-    );
-  }
+  /* --------------------------------------------------------------- render */
 
   return (
-    <SafeAreaView className="flex-1 bg-gray-50" edges={["top"]}>
-      <View className="flex-1">
-        {/* Header */}
-        <View className="bg-gray-50 px-4 pt-2 pb-3 flex-row items-center justify-between">
-          <TouchableOpacity
-            onPress={() => router.back()}
-            className="w-10 h-10 bg-white rounded-full items-center justify-center "
-            activeOpacity={0.7}>
-            <Ionicons name="arrow-back" size={20} color="#1A1A1A" />
-          </TouchableOpacity>
-          <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
-            {t("orderDetail.orderNumber", { number: String(displayOrder.id).slice(-6) })}
-          </Text>
-          <TouchableOpacity
-            onPress={handleRefresh}
-            className="w-10 h-10 bg-white rounded-full items-center justify-center "
-            activeOpacity={0.7}>
-            <Ionicons name="refresh-outline" size={20} color="#1A1A1A" />
-          </TouchableOpacity>
-        </View>
+    <>
+      <Screen
+        back
+        title={t("order.title", { number: String(order.orderNumber || order.id).slice(-6) })}
+        subtitle={order.restaurantName}
+        right={<IconButton icon="help-buoy-outline" label={t("order.needHelp")} onPress={() => setHelpOpen(true)} />}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await fetchOrder();
+              setRefreshing(false);
+            }}
+          />
+        }
+        footer={
+          primary ? (
+            <BottomBar>
+              <Button title={primary.title} icon={primary.icon} variant={primary.variant} loading={busy} onPress={primary.onPress} />
+            </BottomBar>
+          ) : undefined
+        }>
+        {phase !== "done" && phase !== "returning" ? (
+          <Card>
+            <StepStrip steps={steps} current={STEP_INDEX[phase]} />
+          </Card>
+        ) : null}
 
-        {/* Map + live route */}
-        <Animated.View
-          style={{
-            height: mapHeightAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [188, 388],
-            }),
-          }}>
-          {/* Map Section */}
-          <Animated.View
-            style={{
-              height: mapHeightAnim.interpolate({
-                inputRange: [0, 1],
-                outputRange: [170, 360],
-              }),
-              overflow: "hidden",
-            }}>
-            <DeliveryMap
-              driverLocation={safeDriverLoc}
-              pickupLocation={displayOrder.pickupLocation}
-              dropLocation={displayOrder.dropLocation}
-              showRoute={displayOrder.status !== "cancelled"}
-              navigationMode={isActiveOrder}
-              activePhase={navPhase}
-              onRouteLoaded={handleRouteLoaded}
-            />
+        {phase === "returning" ? (
+          <Banner
+            tone="danger"
+            icon="return-up-back"
+            title={t("order.returnTitle")}
+            body={order.returnReason || t("order.returnBody")}
+          />
+        ) : null}
 
-            <View style={orderStyles.mapRouteBar}>
-              <View style={orderStyles.mapRouteIcon}>
-                <Ionicons
-                  name={navPhase === "pickup" ? "restaurant" : "person"}
-                  size={17}
-                  color="#FF6A00"
-                />
-              </View>
-              <View style={{ flex: 1, minWidth: 0 }}>
-                <Text style={orderStyles.mapRouteLabel} numberOfLines={1}>
-                  {navPhase === "pickup"
-                    ? t("orderDetail.goToPickup")
-                    : t("orderDetail.goToCustomer")}
-                </Text>
-                <Text style={orderStyles.mapRouteMeta} numberOfLines={1}>
-                  {routeEtaText}
-                </Text>
-              </View>
-              {isActiveOrder &&
-                displayOrder.status !== "delivered" &&
-                displayOrder.status !== "cancelled" && (
-                  <TouchableOpacity
-                    onPress={() => {
-                      setCurrentStepIdx(0);
-                      setIsNavigating(true);
-                    }}
-                    style={orderStyles.mapRouteButton}
-                    activeOpacity={0.85}>
-                    <Ionicons name="navigate" size={16} color="#fff" />
-                    <Text style={orderStyles.mapRouteButtonText}>{t("common.start")}</Text>
-                  </TouchableOpacity>
-                )}
-            </View>
+        {phase === "done" ? (
+          <Banner
+            tone={order.status === "cancelled" ? "danger" : "success"}
+            icon={order.status === "cancelled" ? "close-circle" : "checkmark-circle"}
+            title={order.status === "cancelled" ? t("order.cancelled") : t("order.delivered")}
+          />
+        ) : null}
 
-            {/* Map Toggle Button */}
-            <TouchableOpacity
-              onPress={toggleMapCollapse}
-              className="absolute top-3 left-3 w-10 h-10 bg-white rounded-full items-center justify-center shadow-xl border-2 border-white"
-              activeOpacity={0.7}>
-              <Ionicons
-                name={isMapCollapsed ? "chevron-down" : "chevron-up"}
-                size={20}
-                color="#1A1A1A"
+        {/* Where to go now */}
+        <Card padded={false}>
+          {isActiveOrder && place.location ? (
+            <View style={{ height: 170, borderTopLeftRadius: 24, borderTopRightRadius: 24, overflow: "hidden" }}>
+              <DeliveryMap
+                driverLocation={driverLocation}
+                pickupLocation={order.pickupLocation}
+                dropLocation={order.dropLocation}
+                showRoute
+                activePhase={toCustomer ? "dropoff" : "pickup"}
               />
-            </TouchableOpacity>
-          </Animated.View>
-
-          <View style={orderStyles.progressStrip}>
-            {STEPS.map((step, index) => {
-              const stepNumber = index + 1;
-              const isDone = stepNumber < currentStep;
-              const isActive = stepNumber === currentStep;
-              return (
-                <View key={step.labelKey} style={orderStyles.progressSegmentWrap}>
-                  <View
-                    style={[
-                      orderStyles.progressDot,
-                      (isDone || isActive) && orderStyles.progressDotFilled,
-                    ]}
-                  />
-                  {index < STEPS.length - 1 && (
-                    <View
-                      style={[
-                        orderStyles.progressLine,
-                        isDone && orderStyles.progressLineFilled,
-                      ]}
-                    />
-                  )}
+            </View>
+          ) : null}
+          <View className="p-4 gap-3">
+            <View className="flex-row items-start gap-3">
+              <View className="w-11 h-11 rounded-full bg-brand items-center justify-center">
+                <Ionicons name={place.icon} size={20} color={color.ink} />
+              </View>
+              <View className="flex-1">
+                <Text className="text-xs font-bold uppercase tracking-wide text-muted">{place.kicker}</Text>
+                <Text className="text-lg font-bold text-ink" numberOfLines={1}>
+                  {place.name}
+                </Text>
+                <Text className="text-sm text-ink-soft" numberOfLines={3}>
+                  {place.address}
+                </Text>
+              </View>
+            </View>
+            {isActiveOrder && phase !== "done" ? (
+              <View className="flex-row gap-2">
+                <View className="flex-1">
+                  <Button title={t("order.navigate")} icon="navigate" variant="dark" size="md" onPress={openMaps} />
                 </View>
-              );
-            })}
+                <View className="flex-1">
+                  <Button title={t("order.call")} icon="call" variant="outline" size="md" onPress={call} />
+                </View>
+              </View>
+            ) : null}
           </View>
-        </Animated.View>
+        </Card>
 
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ paddingBottom: 140 }}
-          className="bg-gray-50"
-          refreshControl={
-            <RefreshControl
-              refreshing={refreshing}
-              onRefresh={handleRefresh}
-              tintColor="#F59E0B"
-              colors={["#F59E0B"]}
-            />
-          }>
-          <View className="px-4 pt-4">
-            <View style={orderStyles.taskCard}>
-              <View style={orderStyles.taskHeader}>
-                <View style={orderStyles.taskIcon}>
-                  <Ionicons
-                    name={navPhase === "pickup" ? "restaurant" : "navigate"}
-                    size={20}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={orderStyles.taskEyebrow}>{statusText}</Text>
-                  <Text style={orderStyles.taskTitle} numberOfLines={1}>
-                    {phaseTitle}
-                  </Text>
-                </View>
-                <View style={orderStyles.taskMetric}>
-                  <Text style={orderStyles.taskMetricText} numberOfLines={1}>
-                    {routeEtaText}
-                  </Text>
-                </View>
+        {/* Money — the one thing riders must not get wrong */}
+        {phase !== "done" ? (
+          collectAmount ? (
+            <View className="bg-brand rounded-3xl p-4 flex-row items-center gap-3">
+              <Ionicons name="cash" size={28} color={color.ink} />
+              <View className="flex-1">
+                <Text className="text-sm font-semibold text-ink">{t("order.collectCash")}</Text>
+                <Text className="text-3xl font-extrabold text-ink">{rupees(collectAmount)}</Text>
               </View>
-              <Text style={orderStyles.taskName} numberOfLines={1}>
-                {phaseName}
-              </Text>
-              <Text style={orderStyles.taskAddress} numberOfLines={2}>
-                {phaseAddress}
-              </Text>
-              <View style={orderStyles.quickActions}>
-                <TouchableOpacity
-                  onPress={() =>
-                    openExternalNavigation(
-                      navPhase === "pickup"
-                        ? displayOrder.pickupLocation
-                        : displayOrder.dropLocation,
-                    )
-                  }
-                  style={orderStyles.primaryQuickAction}
-                  activeOpacity={0.78}>
-                  <Ionicons name="navigate" size={17} color="#FFFFFF" />
-                  <Text style={orderStyles.primaryQuickActionText}>
-                    {t("orderDetail.openMaps")}
-                  </Text>
-                </TouchableOpacity>
-                {contactPhone ? (
-                  <View style={orderStyles.callQuickActionWrap}>
-                    <TouchableOpacity
-                      onPress={openContactSheet}
-                      style={orderStyles.secondaryQuickAction}
-                      activeOpacity={0.78}>
-                      <Ionicons name="call" size={17} color="#111827" />
-                    </TouchableOpacity>
-                    <Text
-                      selectable
-                      numberOfLines={1}
-                      style={orderStyles.callQuickActionPhone}>
-                      {contactPhone}
-                    </Text>
-                  </View>
-                ) : null}
-                <TouchableOpacity
-                  onPress={triggerSOS}
-                  style={orderStyles.sosQuickAction}
-                  activeOpacity={0.78}>
-                  <Ionicons name="alert-circle" size={18} color="#DC2626" />
-                </TouchableOpacity>
-              </View>
+              <Pill label={t("order.cod")} tone="neutral" />
             </View>
+          ) : (
+            <Banner tone="success" icon="card" title={t("order.paidOnline")} body={t("order.dontCollect")} />
+          )
+        ) : null}
 
-            {displayOrder.status === "returning_to_restaurant" && (
-              <View className="bg-red-50 border border-red-100 rounded-2xl p-4 mb-3">
-                <View className="flex-row items-start">
-                  <Ionicons name="return-up-back" size={18} color="#DC2626" />
-                  <View className="ml-2 flex-1">
-                    <Text className="text-red-700 font-bold text-xs mb-1">
-                      Return this order to the restaurant
-                    </Text>
-                    <Text className="text-red-600 font-semibold text-xs">
-                      {displayOrder.returnReason ||
-                        "Admin decided this order needs to go back to the restaurant."}
-                    </Text>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={confirmReturned}
-                  disabled={confirmingReturn}
-                  className="bg-red-600 rounded-xl py-2.5 items-center mt-3">
-                  <Text className="text-white font-bold text-xs">
-                    {confirmingReturn ? "Confirming..." : "Mark as Returned to Restaurant"}
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isActiveOrder && displayOrder.status !== "returning_to_restaurant" && (
-              <View className="flex-row items-center justify-between px-1 mb-3">
-                <View className="flex-row items-center flex-1 mr-2">
-                  <Ionicons name="battery-charging-outline" size={14} color="#9CA3AF" />
-                  <Text
-                    className="text-[11px] text-gray-400 font-medium ml-1.5 flex-1"
-                    numberOfLines={2}>
-                    Keep the app open — disable battery saver if tracking stops
-                  </Text>
-                </View>
-                <TouchableOpacity
-                  onPress={reportDelay}
-                  disabled={reportingIssue}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
-                  <Text className="text-xs font-bold text-amber-600">Delay</Text>
-                </TouchableOpacity>
-                <Text className="text-gray-300 mx-2">|</Text>
-                <TouchableOpacity
-                  onPress={requestReassignment}
-                  disabled={reportingIssue}
-                  hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}>
-                  <Text className="text-xs font-bold text-red-600">Reassign</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            <View style={orderStyles.stopsCard}>
-              <View style={orderStyles.stopRow}>
-                <View style={[orderStyles.stopDot, orderStyles.pickupDot]}>
-                  <Ionicons name="restaurant" size={16} color="#FF6A00" />
-                </View>
-                <View style={orderStyles.stopLine} />
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={orderStyles.stopLabel}>Pickup</Text>
-                  <Text style={orderStyles.stopName} numberOfLines={1}>
-                    {displayOrder.restaurantName}
-                  </Text>
-                  <Text style={orderStyles.stopAddress} numberOfLines={2}>
-                    {formatAddressText(displayOrder.restaurantAddress)}
-                  </Text>
-                </View>
-              </View>
-              <View style={orderStyles.stopDivider} />
-              <View style={orderStyles.stopRow}>
-                <View style={[orderStyles.stopDot, orderStyles.dropDot]}>
-                  <Ionicons name="person" size={16} color="#065F46" />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={orderStyles.stopLabel}>Drop</Text>
-                  <Text style={orderStyles.stopName} numberOfLines={1}>
-                    {displayOrder.customerName}
-                  </Text>
-                  <Text style={orderStyles.stopAddress} numberOfLines={2}>
-                    {formatAddressText(displayOrder.customerAddress)}
-                  </Text>
-                </View>
-              </View>
-            </View>
-
-            {/* Order Items */}
-            <View className="bg-white rounded-2xl p-4  border border-gray-100 mb-3">
-              <TouchableOpacity
-                onPress={() => setItemsExpanded((v) => !v)}
-                activeOpacity={0.7}
-                className={`flex-row items-center ${itemsExpanded ? "mb-3" : ""}`}>
-                <View className="w-10 h-10 bg-blue-50 rounded-xl items-center justify-center ">
-                  <Ionicons name="fast-food" size={20} color="#3B82F6" />
-                </View>
-                <Text
-                  className="text-sm font-bold text-gray-900 ml-3 flex-1"
-                  numberOfLines={1}>
-                  Order Items
-                </Text>
-                <Text className="text-xs font-semibold text-gray-400 mr-2">
-                  {(displayOrder.items || []).length}
-                </Text>
-                <Ionicons
-                  name={itemsExpanded ? "chevron-up" : "chevron-down"}
-                  size={18}
-                  color="#9CA3AF"
-                />
-              </TouchableOpacity>
-              {itemsExpanded &&
-                (displayOrder.items || []).map(
-                (
-                  item: {
-                    name:
-                      | string
-                      | number
-                      | bigint
-                      | boolean
-                      | ReactElement<
-                          unknown,
-                          string | JSXElementConstructor<any>
-                        >
-                      | Iterable<ReactNode>
-                      | ReactPortal
-                      | Promise<
-                          | string
-                          | number
-                          | bigint
-                          | boolean
-                          | ReactPortal
-                          | ReactElement<
-                              unknown,
-                              string | JSXElementConstructor<any>
-                            >
-                          | Iterable<ReactNode>
-                          | null
-                          | undefined
-                        >
-                      | null
-                      | undefined;
-                    quantity:
-                      | string
-                      | number
-                      | bigint
-                      | boolean
-                      | ReactElement<
-                          unknown,
-                          string | JSXElementConstructor<any>
-                        >
-                      | Iterable<ReactNode>
-                      | ReactPortal
-                      | Promise<
-                          | string
-                          | number
-                          | bigint
-                          | boolean
-                          | ReactPortal
-                          | ReactElement<
-                              unknown,
-                              string | JSXElementConstructor<any>
-                            >
-                          | Iterable<ReactNode>
-                          | null
-                          | undefined
-                        >
-                      | null
-                      | undefined;
-                  },
-                  index: Key | null | undefined,
-                ) => (
-                  <View
-                    key={index}
-                    className="flex-row justify-between py-2 border-b border-gray-100">
-                    <View className="flex-row items-center flex-1">
-                      <View className="w-7 h-7 bg-amber-50 rounded-lg items-center justify-center mr-2.5">
-                        <Text className="font-bold text-[10px] text-amber-600">
-                          {item.quantity}x
-                        </Text>
-                      </View>
-                      <Text
-                        className="text-xs text-gray-800 font-medium flex-1"
-                        numberOfLines={1}>
-                        {item.name}
-                      </Text>
-                    </View>
-                  </View>
-                ),
-              )}
-              {itemsExpanded && (displayOrder.items || []).length === 0 && (
-                <Text className="text-xs text-gray-400 py-2">
-                  {t("orderDetail.noItemsFound")}
-                </Text>
-              )}
-            </View>
-
-            {/* Payment & Earnings */}
-            <View className="bg-white rounded-2xl p-4  border border-gray-100 mb-3">
-              <View className="flex-row justify-between items-center mb-3">
-                <View className="flex-row items-center flex-1">
-                  <View className="w-10 h-10 bg-amber-50 rounded-xl items-center justify-center ">
-                    <Ionicons name="wallet" size={20} color="#F59E0B" />
-                  </View>
-                  <Text
-                    className="text-sm font-bold text-gray-900 ml-3"
-                    numberOfLines={1}>
-                    {t("orderDetail.paymentDetails")}
-                  </Text>
-                </View>
-              </View>
-              <View className="flex-row justify-between py-2 border-b border-gray-100">
-                <Text className="text-xs text-gray-600" numberOfLines={1}>
-                  {t("orderDetail.paymentType")}
-                </Text>
-                <View className="px-2.5 py-1 rounded-full bg-gray-100">
-                  <Text
-                    className="text-xs font-semibold text-gray-800 uppercase"
-                    numberOfLines={1}>
-                    {displayOrder.paymentType}
-                  </Text>
-                </View>
-              </View>
-              <View className="flex-row justify-between py-2 border-b border-gray-100">
-                <Text className="text-xs text-gray-600" numberOfLines={1}>
-                  {t("orderDetail.distance")}
-                </Text>
-                <Text
-                  className="text-xs font-semibold text-gray-800"
-                  numberOfLines={1}>
-                  {displayOrder.distance} km
-                </Text>
-              </View>
-              <View className="flex-row justify-between pt-3 mt-2 bg-green-50 -mx-4 -mb-4 px-4 py-3 rounded-b-2xl">
-                <Text
-                  className="text-sm font-bold text-gray-900"
-                  numberOfLines={1}>
-                  {t("orderDetail.yourEarnings")}
-                </Text>
-                <Text
-                  className="text-lg font-bold text-green-600"
-                  numberOfLines={1}>
-                  ₹{displayOrder.earnings || 0}
-                </Text>
-              </View>
-            </View>
+        {/* Items */}
+        <Card onPress={() => setItemsOpen((v) => !v)}>
+          <View className="flex-row items-center">
+            <Ionicons name="receipt-outline" size={20} color={color.ink} />
+            <Text className="flex-1 ml-2 text-base font-bold text-ink">
+              {t("order.items", { count: order.items.length })}
+            </Text>
+            <Ionicons name={itemsOpen || phase === "at_restaurant" ? "chevron-up" : "chevron-down"} size={18} color={color.muted} />
           </View>
-        </ScrollView>
+          {(itemsOpen || phase === "at_restaurant") && order.items.length > 0 ? (
+            <View className="mt-3 gap-2">
+              {order.items.map((item: { name: string; quantity: number }, i: number) => (
+                <View key={`${item.name}-${i}`} className="flex-row items-center gap-3">
+                  <View className="min-w-[34px] h-8 px-2 rounded-lg bg-brand-soft items-center justify-center">
+                    <Text className="text-sm font-extrabold text-ink">{item.quantity}×</Text>
+                  </View>
+                  <Text className="flex-1 text-base text-ink" numberOfLines={2}>
+                    {item.name}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+        </Card>
 
-        {/* Action Footer - Only show for active orders */}
-        {isActiveOrder &&
-          displayOrder.status !== "delivered" &&
-          displayOrder.status !== "cancelled" &&
-          displayOrder.status !== "returning_to_restaurant" && (
-            <ActionFooter
-              label={proofUploading ? t("orderDetail.uploadingProof") : getActionLabel()}
-              onPress={handlePrimaryActionPress}
-              loading={loading || proofUploading}
+        {/* Earnings for this trip */}
+        <Card>
+          <View className="flex-row items-center justify-between">
+            <Text className="text-sm text-muted">{t("order.youEarn")}</Text>
+            <Text className="text-lg font-extrabold text-success">{rupees(order.earnings)}</Text>
+          </View>
+          {order.distance ? (
+            <Text className="text-xs text-muted mt-1">{t("order.tripDistance", { km: Number(order.distance).toFixed(1) })}</Text>
+          ) : null}
+        </Card>
+      </Screen>
+
+      <HandoverSheet
+        visible={handoverOpen}
+        orderId={String(order.id)}
+        amount={order.totalAmount}
+        isCash={isCash}
+        isPaid={isPaid}
+        onClose={() => setHandoverOpen(false)}
+        onDone={finishDelivery}
+      />
+
+      {/* Need help? — every non-primary action lives here */}
+      <Modal visible={helpOpen} transparent animationType="fade" onRequestClose={() => setHelpOpen(false)}>
+        <Pressable style={{ flex: 1, backgroundColor: color.overlay }} onPress={() => setHelpOpen(false)} />
+        <View style={{ paddingBottom: insets.bottom + 12 }} className="bg-canvas rounded-t-3xl px-4 pt-4 gap-3">
+          <Text className="text-lg font-bold text-ink px-1">{t("order.needHelp")}</Text>
+          <ListGroup>
+            {isActiveOrder && phase !== "returning" ? (
+              <ListRow icon="time-outline" title={t("order.reportDelay")} subtitle={t("order.reportDelayHint")} onPress={reportDelay} />
+            ) : null}
+            <ListRow
+              icon="headset-outline"
+              title={t("order.callSupport")}
+              subtitle="+91 98750 54898"
+              onPress={() => {
+                setHelpOpen(false);
+                openPhoneDialer("+919875054898");
+              }}
             />
-          )}
-
-        {orderOverlays}
-      </View>
-    </SafeAreaView>
+            {isActiveOrder && phase !== "returning" ? (
+              <ListRow icon="close-circle-outline" title={t("order.cantComplete")} subtitle={t("order.cantCompleteHint")} danger onPress={cantComplete} />
+            ) : null}
+            <ListRow
+              icon="warning-outline"
+              title={t("order.sos")}
+              subtitle={t("order.sosHint")}
+              danger
+              onPress={() => {
+                setHelpOpen(false);
+                Alert.alert(t("order.sos"), t("order.sosConfirm"), [
+                  { text: t("common.cancel"), style: "cancel" },
+                  { text: t("order.call112"), style: "destructive", onPress: () => openPhoneDialer("112") },
+                ]);
+              }}
+            />
+          </ListGroup>
+          <Button title={t("common.close")} variant="outline" onPress={() => setHelpOpen(false)} />
+        </View>
+      </Modal>
+    </>
   );
 }
-
-// ── Navigation overlay styles ────────────────────────────────────────────────
-
-const navStyles = StyleSheet.create({
-  topOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    zIndex: 10,
-  },
-  instructionCard: {
-    margin: 14,
-    backgroundColor: "#1F2937",
-    borderRadius: 18,
-    padding: 16,
-    flexDirection: "row",
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.35,
-    shadowRadius: 10,
-    elevation: 10,
-  },
-  maneuverCircle: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: "#FF6A00",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  instructionText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "700",
-    lineHeight: 21,
-  },
-  stepDist: {
-    color: "#9CA3AF",
-    fontSize: 12,
-    marginTop: 3,
-  },
-  bottomSheet: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    zIndex: 30,
-    backgroundColor: "#fff",
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    paddingHorizontal: 16,
-    paddingTop: 14,
-    paddingBottom: 22,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 14,
-    elevation: 14,
-  },
-  etaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  etaBlock: {
-    alignItems: "center",
-    minWidth: 48,
-  },
-  etaValue: {
-    fontSize: 24,
-    fontWeight: "800",
-    color: "#1F2937",
-    lineHeight: 30,
-  },
-  etaLabel: {
-    fontSize: 11,
-    color: "#6B7280",
-    marginTop: 2,
-  },
-  etaDivider: {
-    width: 1,
-    height: 36,
-    backgroundColor: "#E5E7EB",
-    marginHorizontal: 12,
-  },
-  phaseTag: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#FFF5EB",
-    borderRadius: 20,
-    paddingHorizontal: 10,
-    paddingVertical: 6,
-    maxWidth: 140,
-  },
-  phaseText: {
-    color: "#FF6A00",
-    fontSize: 12,
-    fontWeight: "700",
-    flexShrink: 1,
-  },
-  btnRow: {
-    flexDirection: "row",
-    gap: 10,
-    alignItems: "center",
-  },
-  exitBtn: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: "#F3F4F6",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  actionBtn: {
-    flex: 1,
-    minHeight: 48,
-    backgroundColor: "#FF6A00",
-    borderRadius: 24,
-    paddingHorizontal: 12,
-    alignItems: "center",
-    justifyContent: "center",
-    shadowColor: "#FF6A00",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  actionBtnText: {
-    color: "#fff",
-    fontSize: 14,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-  },
-});
-
-const orderStyles = StyleSheet.create({
-  progressStrip: {
-    height: 28,
-    backgroundColor: "#F9FAFB",
-    paddingHorizontal: 20,
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  progressSegmentWrap: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  progressDot: {
-    width: 9,
-    height: 9,
-    borderRadius: 5,
-    backgroundColor: "#E5E7EB",
-    flexShrink: 0,
-  },
-  progressDotFilled: {
-    backgroundColor: "#10B981",
-  },
-  progressLine: {
-    flex: 1,
-    height: 2,
-    backgroundColor: "#E5E7EB",
-    marginHorizontal: 4,
-  },
-  progressLineFilled: {
-    backgroundColor: "#10B981",
-  },
-  mapRouteBar: {
-    position: "absolute",
-    left: 12,
-    right: 12,
-    bottom: 12,
-    minHeight: 64,
-    borderRadius: 18,
-    backgroundColor: "#FFFFFF",
-    borderWidth: 1,
-    borderColor: "rgba(17,24,39,0.08)",
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
-    shadowOpacity: 0.16,
-    shadowRadius: 10,
-    elevation: 8,
-  },
-  mapRouteIcon: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: "#FFF5EB",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  mapRouteLabel: {
-    color: "#111827",
-    fontSize: 13,
-    fontWeight: "800",
-  },
-  mapRouteMeta: {
-    color: "#6B7280",
-    fontSize: 11,
-    fontWeight: "600",
-    marginTop: 3,
-  },
-  mapRouteButton: {
-    height: 38,
-    borderRadius: 19,
-    paddingHorizontal: 12,
-    backgroundColor: "#FF6A00",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 5,
-    flexShrink: 0,
-  },
-  mapRouteButtonText: {
-    color: "#FFFFFF",
-    fontSize: 12,
-    fontWeight: "800",
-  },
-  taskCard: {
-    backgroundColor: "#111827",
-    borderRadius: 24,
-    padding: 16,
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.18,
-    shadowRadius: 14,
-    elevation: 8,
-  },
-  taskHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginBottom: 12,
-  },
-  taskIcon: {
-    width: 42,
-    height: 42,
-    borderRadius: 21,
-    backgroundColor: "#FF6A00",
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  taskEyebrow: {
-    color: "#9CA3AF",
-    fontSize: 11,
-    fontWeight: "800",
-    textTransform: "uppercase",
-  },
-  taskTitle: {
-    color: "#FFFFFF",
-    fontSize: 18,
-    fontWeight: "900",
-    marginTop: 2,
-  },
-  taskMetric: {
-    maxWidth: 116,
-    borderRadius: 16,
-    backgroundColor: "rgba(255,255,255,0.1)",
-    paddingHorizontal: 10,
-    paddingVertical: 7,
-    flexShrink: 0,
-  },
-  taskMetricText: {
-    color: "#FFFFFF",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  taskName: {
-    color: "#FFFFFF",
-    fontSize: 15,
-    fontWeight: "900",
-  },
-  taskAddress: {
-    color: "#D1D5DB",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 5,
-  },
-  quickActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    marginTop: 15,
-  },
-  primaryQuickAction: {
-    flex: 1,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#FF6A00",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 7,
-  },
-  primaryQuickActionText: {
-    color: "#FFFFFF",
-    fontSize: 13,
-    fontWeight: "900",
-  },
-  secondaryQuickAction: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#FFFFFF",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  callQuickActionWrap: {
-    alignItems: "center",
-    gap: 5,
-    maxWidth: 82,
-  },
-  callQuickActionPhone: {
-    color: "#D1D5DB",
-    fontSize: 9,
-    fontWeight: "800",
-    maxWidth: 82,
-    textAlign: "center",
-  },
-  sosQuickAction: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: "#FEF2F2",
-    borderWidth: 1,
-    borderColor: "#FECACA",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  contactSheetContent: {
-    paddingHorizontal: 22,
-    paddingTop: 10,
-    paddingBottom: 28,
-    alignItems: "center",
-  },
-  contactSheetIcon: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
-    backgroundColor: "#FFF7ED",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 12,
-  },
-  contactSheetTitle: {
-    color: "#111827",
-    fontSize: 24,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  contactSheetName: {
-    color: "#6B7280",
-    fontSize: 14,
-    fontWeight: "800",
-    marginTop: 5,
-    maxWidth: "100%",
-    textAlign: "center",
-  },
-  contactSheetCallButton: {
-    width: "100%",
-    minHeight: 52,
-    borderRadius: 26,
-    backgroundColor: "#FF6A00",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    marginTop: 18,
-  },
-  contactSheetCallButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "900",
-  },
-  contactSheetPhoneRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 10,
-    marginTop: 14,
-  },
-  contactSheetPhone: {
-    color: "#111827",
-    fontSize: 18,
-    fontWeight: "900",
-    textAlign: "center",
-  },
-  contactSheetCopyButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 14,
-    backgroundColor: "#F3F4F6",
-  },
-  contactSheetCopyButtonText: {
-    color: "#6B7280",
-    fontSize: 11,
-    fontWeight: "800",
-  },
-  contactSheetHint: {
-    color: "#9CA3AF",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 8,
-    textAlign: "center",
-  },
-  stopsCard: {
-    backgroundColor: "#FFFFFF",
-    borderRadius: 22,
-    borderWidth: 1,
-    borderColor: "#EEF2F7",
-    padding: 16,
-    marginBottom: 12,
-  },
-  stopRow: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 12,
-  },
-  stopDot: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  pickupDot: {
-    backgroundColor: "#FFF5EB",
-  },
-  dropDot: {
-    backgroundColor: "#D1FAE5",
-  },
-  stopLine: {
-    position: "absolute",
-    left: 19,
-    top: 42,
-    width: 2,
-    height: 42,
-    backgroundColor: "#E5E7EB",
-  },
-  stopDivider: {
-    height: 1,
-    backgroundColor: "#F3F4F6",
-    marginVertical: 14,
-    marginLeft: 52,
-  },
-  stopLabel: {
-    color: "#9CA3AF",
-    fontSize: 11,
-    fontWeight: "900",
-    textTransform: "uppercase",
-  },
-  stopName: {
-    color: "#111827",
-    fontSize: 14,
-    fontWeight: "900",
-    marginTop: 2,
-  },
-  stopAddress: {
-    color: "#6B7280",
-    fontSize: 12,
-    lineHeight: 17,
-    marginTop: 3,
-  },
-});
