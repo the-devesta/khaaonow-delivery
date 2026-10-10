@@ -45,14 +45,6 @@ export default function RootLayout() {
                   options={{ headerShown: false }}
                 />
                 <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-                <Stack.Screen
-                  name="modal"
-                  options={{
-                    presentation: "modal",
-                    title: "Profile",
-                    headerShown: true,
-                  }}
-                />
               </Stack>
             </AppStatusGate>
             <StatusBar style="auto" />

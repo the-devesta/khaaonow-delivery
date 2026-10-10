@@ -5,6 +5,17 @@
  */
 export const riderStrings = {
   en: {
+    orderRequest: {
+      newOrderRequest: "New order",
+      earnings: "You earn",
+      distance: "Distance",
+      accept: "Accept order",
+      skip: "Skip",
+    },
+    missedOrder: {
+      stillOpen: "Still open · {{count}} min",
+      accept: "Take this order",
+    },
     earn: {
       title: "Earnings",
       toBePaid: "To be paid to you",
@@ -287,6 +298,17 @@ export const riderStrings = {
     },
   },
   hi: {
+    orderRequest: {
+      newOrderRequest: "नया ऑर्डर",
+      earnings: "आपकी कमाई",
+      distance: "दूरी",
+      accept: "ऑर्डर लें",
+      skip: "छोड़ें",
+    },
+    missedOrder: {
+      stillOpen: "अभी खुला · {{count}} मिनट",
+      accept: "यह ऑर्डर लें",
+    },
     earn: {
       title: "कमाई",
       toBePaid: "आपको मिलने वाला",
@@ -568,6 +590,17 @@ export const riderStrings = {
     },
   },
   gu: {
+    orderRequest: {
+      newOrderRequest: "નવો ઓર્ડર",
+      earnings: "તમારી કમાણી",
+      distance: "અંતર",
+      accept: "ઓર્ડર લો",
+      skip: "છોડો",
+    },
+    missedOrder: {
+      stillOpen: "હજી ખુલ્લો · {{count}} મિનિટ",
+      accept: "આ ઓર્ડર લો",
+    },
     earn: {
       title: "કમાણી",
       toBePaid: "તમને મળવાના",
