@@ -452,3 +452,33 @@ export const rupees = (value: number | null | undefined, decimals = 0) =>
     minimumFractionDigits: decimals,
     maximumFractionDigits: decimals,
   })}`;
+
+/** Two-to-four option switch (e.g. Today / Week / Month). */
+export function Segmented<T extends string>({
+  value,
+  options,
+  onChange,
+}: {
+  value: T;
+  options: { value: T; label: string }[];
+  onChange: (value: T) => void;
+}) {
+  return (
+    <View className="flex-row bg-surface border border-line rounded-2xl p-1">
+      {options.map((o) => {
+        const active = o.value === value;
+        return (
+          <Pressable
+            key={o.value}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: active }}
+            onPress={() => onChange(o.value)}
+            style={{ minHeight: 40 }}
+            className={`flex-1 items-center justify-center rounded-xl ${active ? "bg-ink" : ""}`}>
+            <Text className={`text-sm font-bold ${active ? "text-white" : "text-ink-soft"}`}>{o.label}</Text>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}

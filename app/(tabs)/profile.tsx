@@ -1,379 +1,223 @@
-import { ApiService } from "@/services/api";
-import { useAuthStore } from "@/store/auth";
-import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
-import {
-  ActivityIndicator,
-  Animated,
-  RefreshControl,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from "react-native";
-import { useTranslation } from "react-i18next";
+/**
+ * Profile — one list: your details, payout account, language, alerts, help,
+ * app version, log out. Delete account sits at the very bottom.
+ */
+import { Card, ListGroup, ListRow, Pill, SectionTitle } from "@/components/kit";
 import UpdateAppDialog from "@/components/UpdateAppDialog";
 import { useAppUpdateCheck } from "@/hooks/useAppUpdateCheck";
+import { AppLanguage, getLanguageLabel, LANGUAGES, setSavedLanguage } from "@/i18n";
+import { ApiService } from "@/services/api";
+import { useAuthStore } from "@/store/auth";
+import { color } from "@/theme/tokens";
+import {
+  getPushNotificationPermissionStatus,
+  registerForPushNotificationsAsync,
+  registerPushTokenWithBackend,
+} from "@/utils/notifications";
+import { openPhoneDialer } from "@/utils/phone";
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import React, { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { Alert, Image, Linking, RefreshControl, ScrollView, Switch, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-interface ProfileData {
-  id: string;
-  name?: string;
-  email?: string;
-  phone: string;
-  avatar?: string;
-  rating: number;
-  totalOrders: number;
-  completedOrders: number;
-  vehicleType?: string;
-  vehicleNumber?: string;
-  isApproved: boolean;
-  onboardingStatus: string;
-}
+const SUPPORT_PHONE = "+919875054898";
+const SUPPORT_WHATSAPP = "919875054898";
+
+const initials = (name?: string) =>
+  (name || "KN")
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]!.toUpperCase())
+    .join("");
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { t } = useTranslation();
-  const { logout, phoneNumber } = useAuthStore();
-  const [profile, setProfile] = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+  const insets = useSafeAreaInsets();
+  const { t, i18n } = useTranslation();
+  const { partner, phoneNumber, fetchProfile, logout } = useAuthStore();
+  const p = partner as any;
   const appUpdate = useAppUpdateCheck();
-  const [showUpdateDialog, setShowUpdateDialog] = useState(false);
+  const [showUpdate, setShowUpdate] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [pushOn, setPushOn] = useState(false);
+  const [stats, setStats] = useState<{ rating?: number; completedOrders?: number }>({});
 
-  // Animation values
-  const [fadeAnim] = useState(new Animated.Value(0));
-
-  const fetchProfile = async () => {
-    try {
-      const response = await ApiService.getProfile();
-      if (response.success && response.data) {
-        setProfile(response.data as any);
-      }
-    } catch (error) {
-      console.error("Failed to fetch profile:", error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }).start();
-    }
+  const loadStats = async () => {
+    const res = await ApiService.getProfile();
+    if (res.success && res.data) setStats(res.data as any);
   };
 
   useEffect(() => {
-    fetchProfile();
+    void loadStats();
     appUpdate.check();
+    getPushNotificationPermissionStatus().then((s) => setPushOn(s === "granted"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleRefresh = () => {
-    setRefreshing(true);
-    fetchProfile();
+  const togglePush = async (on: boolean) => {
+    if (!on) {
+      // OS owns the permission; send the rider there to turn it off.
+      Linking.openSettings();
+      return;
+    }
+    const token = await registerForPushNotificationsAsync({ requestPermission: true });
+    if (token) {
+      await registerPushTokenWithBackend(token);
+      setPushOn(true);
+    } else {
+      Alert.alert(t("me.alertsOffTitle"), t("me.alertsOffBody"), [
+        { text: t("common.close"), style: "cancel" },
+        { text: t("me.openSettings"), onPress: () => Linking.openSettings() },
+      ]);
+    }
   };
 
-  const handleLogout = () => {
-    logout();
-    router.replace("/auth/login");
+  const pickLanguage = () =>
+    Alert.alert(t("me.language"), "", [
+      ...LANGUAGES.map((l) => ({ text: l.nativeLabel, onPress: () => setSavedLanguage(l.code as AppLanguage) })),
+      { text: t("common.close"), style: "cancel" as const },
+    ]);
+
+  const whatsapp = async () => {
+    const text = encodeURIComponent(t("me.whatsappText", { name: p?.name || "", phone: phoneNumber || "" }));
+    const app = `whatsapp://send?phone=${SUPPORT_WHATSAPP}&text=${text}`;
+    Linking.openURL((await Linking.canOpenURL(app)) ? app : `https://api.whatsapp.com/send?phone=${SUPPORT_WHATSAPP}&text=${text}`);
   };
 
-  const getInitials = (name?: string) => {
-    if (!name) return "DP";
-    const parts = name.split(" ");
-    return parts.length > 1
-      ? `${parts[0][0]}${parts[1][0]}`.toUpperCase()
-      : name.substring(0, 2).toUpperCase();
-  };
+  const confirmLogout = () =>
+    Alert.alert(t("pending.logout"), t("pending.logoutConfirm"), [
+      { text: t("common.close"), style: "cancel" },
+      {
+        text: t("pending.logout"),
+        style: "destructive",
+        onPress: async () => {
+          await logout();
+          router.replace("/auth/login");
+        },
+      },
+    ]);
 
-  const menuItems = [
-    {
-      id: 1,
-      title: t("profile.editProfile"),
-      icon: "person-outline",
-      route: "/profile/edit",
-      color: "#F59E0B",
-      bg: "#FFFBEB",
-    },
-    {
-      id: 2,
-      title: t("profile.paymentMethods"),
-      icon: "card-outline",
-      route: "/profile/payments",
-      color: "#10B981",
-      bg: "#ECFDF5",
-    },
-    {
-      id: 3,
-      title: t("profile.orderHistory"),
-      icon: "receipt-outline",
-      route: "/(tabs)/orders", // Link to orders tab for now
-      color: "#3B82F6",
-      bg: "#EFF6FF",
-    },
-    {
-      id: 4,
-      title: t("profile.notifications"),
-      icon: "notifications-outline",
-      route: "/profile/notifications",
-      color: "#8B5CF6",
-      bg: "#EDE9FE",
-    },
-    {
-      id: 5,
-      title: t("profile.settings"),
-      icon: "settings-outline",
-      route: "/profile/settings",
-      color: "#6B7280",
-      bg: "#F3F4F6",
-    },
-    {
-      id: 6,
-      title: t("profile.helpSupport"),
-      icon: "help-circle-outline",
-      route: "/profile/support",
-      color: "#EF4444",
-      bg: "#FEE2E2",
-    },
-  ];
+  const confirmDelete = () =>
+    Alert.alert(t("me.deleteTitle"), t("me.deleteBody"), [
+      { text: t("common.close"), style: "cancel" },
+      {
+        text: t("me.deleteConfirm"),
+        style: "destructive",
+        onPress: async () => {
+          const res = await ApiService.deleteAccount();
+          if (!res.success) {
+            Alert.alert(t("common.failed"), res.message || t("common.tryAgain"));
+            return;
+          }
+          await logout();
+          router.replace("/auth/login");
+        },
+      },
+    ]);
 
-  if (loading) {
-    return (
-      <View className="flex-1 bg-[#F3E0D9] items-center justify-center">
-        <ActivityIndicator size="large" color="#F59E0B" />
-        <Text className="text-gray-500 mt-4 font-medium">
-          {t("profile.loadingProfile")}
-        </Text>
-      </View>
-    );
-  }
+  const updateReady = appUpdate.result?.status === "update_available";
+  const vehicle = [p?.vehicleType, p?.vehicleNumber].filter(Boolean).join(" · ");
+  const photo = p?.profilePhoto || p?.avatar;
+  const payoutLabel = p?.upiId || (p?.bankAccountNumber ? `•••• ${String(p.bankAccountNumber).slice(-4)}` : t("me.notAdded"));
 
   return (
-    <View className="flex-1 bg-[#F3E0D9]">
+    <View style={{ flex: 1, backgroundColor: color.canvas }}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: 110 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
-            onRefresh={handleRefresh}
-            tintColor="#F59E0B"
-            colors={["#F59E0B"]}
+            onRefresh={async () => {
+              setRefreshing(true);
+              await Promise.all([fetchProfile(), loadStats()]);
+              setRefreshing(false);
+            }}
           />
         }
-      >
-        {/* Background Gradient */}
-        <View className="absolute top-0 left-0 right-0 h-96 opacity-60">
-          <LinearGradient
-            colors={["#FFF5EB", "transparent"]}
-            style={{ flex: 1 }}
-          />
-        </View>
+        contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 120, gap: 12 }}>
+        <Text className="text-2xl font-extrabold text-ink">{t("me.title")}</Text>
 
-        <View className="px-6 pt-16 pb-8">
-          {/* Header */}
-          <Text className="text-sm font-medium text-[#7A7A7A] uppercase tracking-wider mb-1">
-            {t("profile.myAccount")}
-          </Text>
-          <Text className="text-3xl font-extrabold text-[#1A1A1A] mb-8">
-            {t("profile.profile")}
-          </Text>
-
-          {/* Profile Card */}
-          <View className="bg-white rounded-[32px] p-1  mb-6">
-            <View className="bg-gray-50 rounded-[28px] p-6 flex-row items-center">
-              <View className="w-20 h-20 bg-[#F59E0B] rounded-[24px] items-center justify-center mr-5 shadow-lg shadow-amber-200 border-4 border-white">
-                <Text className="text-white text-2xl font-bold">
-                  {getInitials(profile?.name)}
-                </Text>
+        <Card>
+          <View className="flex-row items-center gap-4">
+            {photo && /^https?:/.test(photo) ? (
+              <Image source={{ uri: photo }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+            ) : (
+              <View className="w-16 h-16 rounded-full bg-brand items-center justify-center">
+                <Text className="text-xl font-extrabold text-ink">{initials(p?.name)}</Text>
               </View>
-              <View className="flex-1">
-                <Text className="text-xl font-bold text-[#1A1A1A] mb-1">
-                  {profile?.name || t("profile.deliveryPartner")}
-                </Text>
-                <Text className="text-sm font-medium text-[#7A7A7A]">
-                  {profile?.phone || phoneNumber}
-                </Text>
-                {profile?.email && (
-                  <Text className="text-xs text-[#9CA3AF] mt-1">
-                    {profile.email}
-                  </Text>
-                )}
-                <View className="flex-row items-center mt-2.5">
-                  <View className="px-2.5 py-1 bg-[#10B981]/10 rounded-full border border-[#10B981]/20">
-                    <Text className="text-[10px] font-bold text-[#10B981] uppercase tracking-wide">
-                      {t("profile.verifiedPartner")}
-                    </Text>
-                  </View>
-                </View>
-              </View>
+            )}
+            <View className="flex-1 gap-1">
+              <Text className="text-xl font-extrabold text-ink" numberOfLines={1}>
+                {p?.name || t("home.rider")}
+              </Text>
+              <Text className="text-sm text-muted">{p?.phone || phoneNumber}</Text>
+              {p?.isApproved ? <Pill label={t("me.verified")} tone="success" /> : null}
             </View>
           </View>
-
-          {/* Stats Card */}
-          <View className="bg-white rounded-[32px] p-6  mb-8">
-            <View className="flex-row justify-between">
-              <View className="items-center flex-1">
-                <View className="w-10 h-10 bg-[#FFFBEB] rounded-xl items-center justify-center mb-2">
-                  <Ionicons name="star" size={20} color="#F59E0B" />
-                </View>
-                <Text className="text-2xl font-extrabold text-[#1A1A1A]">
-                  {profile?.rating?.toFixed(1) || "0.0"}
-                </Text>
-                <Text className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wide">
-                  {t("profile.rating")}
-                </Text>
-              </View>
-              <View className="w-[1px] bg-gray-200/60 my-2" />
-              <View className="items-center flex-1">
-                <View className="w-10 h-10 bg-[#ECFDF5] rounded-xl items-center justify-center mb-2">
-                  <Ionicons name="cube" size={20} color="#10B981" />
-                </View>
-                <Text className="text-2xl font-extrabold text-[#1A1A1A]">
-                  {profile?.completedOrders || 0}
-                </Text>
-                <Text className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wide">
-                  {t("profile.deliveries")}
-                </Text>
-              </View>
-              <View className="w-[1px] bg-gray-200/60 my-2" />
-              <View className="items-center flex-1">
-                <View className="w-10 h-10 bg-[#EFF6FF] rounded-xl items-center justify-center mb-2">
-                  <Ionicons name="bicycle" size={20} color="#3B82F6" />
-                </View>
-                <Text
-                  className="text-xl font-extrabold text-[#1A1A1A] text-center"
-                  numberOfLines={1}
-                >
-                  {profile?.vehicleType || "N/A"}
-                </Text>
-                <Text className="text-xs font-bold text-[#9CA3AF] uppercase tracking-wide">
-                  {t("profile.vehicle")}
-                </Text>
-              </View>
+          <View className="flex-row mt-4 pt-4 border-t border-line">
+            <View className="flex-1 items-center">
+              <Text className="text-lg font-extrabold text-ink">{stats.completedOrders ?? p?.completedOrders ?? 0}</Text>
+              <Text className="text-xs text-muted">{t("me.deliveries")}</Text>
+            </View>
+            <View className="flex-1 items-center border-l border-line">
+              <Text className="text-lg font-extrabold text-ink">
+                {stats.rating ? `${Number(stats.rating).toFixed(1)} ★` : "—"}
+              </Text>
+              <Text className="text-xs text-muted">{t("me.rating")}</Text>
             </View>
           </View>
+        </Card>
 
-          {/* Menu Items */}
-          <Text className="text-lg font-bold text-[#1A1A1A] mb-4 ml-1">
-            {t("profile.general")}
-          </Text>
-          <View className="gap-3 mb-8">
-            {menuItems.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                activeOpacity={0.7}
-                onPress={() => router.push(item.route as any)}
-                className="flex-row items-center justify-between bg-white rounded-[24px] p-4 "
-              >
-                <View className="flex-row items-center flex-1">
-                  <View
-                    className="w-10 h-10 rounded-2xl items-center justify-center mr-4"
-                    style={{ backgroundColor: item.bg }}
-                  >
-                    <Ionicons
-                      name={item.icon as any}
-                      size={20}
-                      color={item.color}
-                    />
-                  </View>
-                  <Text className="text-base font-bold text-[#1A1A1A]">
-                    {item.title}
-                  </Text>
-                </View>
-                <Ionicons name="chevron-forward" size={18} color="#D1D5DB" />
-              </TouchableOpacity>
-            ))}
-          </View>
+        <SectionTitle title={t("me.account")} />
+        <ListGroup>
+          <ListRow icon="person-outline" title={t("me.details")} subtitle={vehicle || undefined} onPress={() => router.push("/profile/edit")} />
+          <ListRow icon="wallet-outline" title={t("me.payout")} subtitle={payoutLabel} onPress={() => router.push("/profile/payments")} />
+          <ListRow icon="notifications-outline" title={t("me.inbox")} onPress={() => router.push("/profile/notifications")} />
+        </ListGroup>
 
-          {/* App Update */}
-          <TouchableOpacity
-            activeOpacity={0.8}
-            disabled={appUpdate.result?.status !== "update_available"}
-            onPress={() => setShowUpdateDialog(true)}
-            className="bg-white rounded-[24px] p-4 mb-3 flex-row items-center"
-          >
-            <View
-              className="w-11 h-11 rounded-2xl items-center justify-center mr-4"
-              style={{
-                backgroundColor:
-                  appUpdate.result?.status === "update_available"
-                    ? "#FFF7ED"
-                    : "#F0FDF4",
-              }}
-            >
-              <Ionicons
-                name={
-                  appUpdate.result?.status === "update_available"
-                    ? "rocket-outline"
-                    : "checkmark-circle-outline"
-                }
-                size={20}
-                color={
-                  appUpdate.result?.status === "update_available"
-                    ? "#F97316"
-                    : "#16A34A"
-                }
-              />
+        <SectionTitle title={t("me.app")} />
+        <ListGroup>
+          <ListRow icon="language-outline" title={t("me.language")} value={getLanguageLabel(i18n.language)} onPress={pickLanguage} />
+          <View className="flex-row items-center gap-3 px-4 py-3" style={{ minHeight: 52 }}>
+            <View className="w-10 h-10 rounded-full items-center justify-center bg-canvas">
+              <Ionicons name="megaphone-outline" size={20} color={color.ink} />
             </View>
             <View className="flex-1">
-              <Text className="text-base font-bold text-[#1A1A1A]">
-                App Version
-              </Text>
-              <Text className="text-xs text-[#9CA3AF] mt-0.5">
-                v{appUpdate.currentVersion}
-              </Text>
+              <Text className="text-base font-semibold text-ink">{t("me.orderAlerts")}</Text>
+              <Text className="text-sm text-muted">{t("me.orderAlertsHint")}</Text>
             </View>
-            {appUpdate.checking ? (
-              <ActivityIndicator size="small" color="#9CA3AF" />
-            ) : appUpdate.result?.status === "update_available" ? (
-              <View className="bg-[#FFF7ED] rounded-full px-3 py-1.5">
-                <Text className="text-xs font-bold text-[#F97316]">
-                  Update to v{appUpdate.result.latestVersion}
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity
-                onPress={() => appUpdate.check()}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              >
-                <Text className="text-xs font-bold text-[#3B82F6]">
-                  Check for Updates
-                </Text>
-              </TouchableOpacity>
-            )}
-          </TouchableOpacity>
+            <Switch value={pushOn} onValueChange={togglePush} trackColor={{ true: color.success }} />
+          </View>
+          <ListRow
+            icon={updateReady ? "rocket-outline" : "phone-portrait-outline"}
+            title={updateReady ? t("me.updateReady", { version: appUpdate.result?.status === "update_available" ? appUpdate.result.latestVersion : "" }) : t("me.version")}
+            value={`v${appUpdate.currentVersion}`}
+            onPress={updateReady ? () => setShowUpdate(true) : () => appUpdate.check()}
+            chevron={updateReady}
+          />
+        </ListGroup>
 
-          {/* Logout Button */}
-          <TouchableOpacity
-            onPress={handleLogout}
-            activeOpacity={0.8}
-            className="bg-white rounded-[24px] py-4 items-center border border-red-100"
-          >
-            <View className="flex-row items-center">
-              <Ionicons name="log-out-outline" size={20} color="#EF4444" />
-              <Text className="text-[#EF4444] text-base font-bold ml-2">
-                {t("profile.logout")}
-              </Text>
-            </View>
-          </TouchableOpacity>
+        <SectionTitle title={t("me.help")} />
+        <ListGroup>
+          <ListRow icon="call-outline" title={t("me.callSupport")} subtitle="+91 98750 54898" onPress={() => openPhoneDialer(SUPPORT_PHONE)} />
+          <ListRow icon="logo-whatsapp" title={t("me.whatsappSupport")} onPress={whatsapp} />
+        </ListGroup>
 
-          {/* App Version */}
-          <Text className="text-xs text-[#9CA3AF] text-center mt-8 font-medium">
-            Khaaonow Delivery Partner v{appUpdate.currentVersion}
-          </Text>
-        </View>
+        <ListGroup>
+          <ListRow icon="log-out-outline" title={t("pending.logout")} danger chevron={false} onPress={confirmLogout} />
+        </ListGroup>
+
+        <Text onPress={confirmDelete} className="text-sm text-muted text-center underline py-2">
+          {t("me.deleteTitle")}
+        </Text>
       </ScrollView>
 
-      {appUpdate.result?.status === "update_available" && (
-        <UpdateAppDialog
-          visible={showUpdateDialog}
-          updateInfo={appUpdate.result}
-          onDismiss={() => setShowUpdateDialog(false)}
-        />
-      )}
+      {updateReady && appUpdate.result ? (
+        <UpdateAppDialog visible={showUpdate} updateInfo={appUpdate.result as any} onDismiss={() => setShowUpdate(false)} />
+      ) : null}
     </View>
   );
 }

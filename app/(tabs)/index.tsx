@@ -15,6 +15,7 @@ import { useAppUpdateCheck } from "@/hooks/useAppUpdateCheck";
 import { useLocationTracking } from "@/hooks/useLocationTracking";
 import { ApiService } from "@/services/api";
 import { useOrderStore } from "@/store/orders";
+import { NEXT_STEP_KEY } from "@/utils/orderView";
 import { usePartnerStore } from "@/store/partner";
 import { color } from "@/theme/tokens";
 import { registerForPushNotificationsAsync, registerPushTokenWithBackend } from "@/utils/notifications";
@@ -40,17 +41,6 @@ interface DashboardData {
     estimatedDeliveryFee?: number;
   } | null;
 }
-
-const NEXT_STEP_KEY: Record<string, string> = {
-  delivery_partner_accepted: "home.nextGoRestaurant",
-  accepted: "home.nextGoRestaurant",
-  delivery_partner_reached: "home.nextPickUp",
-  delivery_partner_picked_up: "home.nextGoCustomer",
-  picked_up: "home.nextGoCustomer",
-  delivery_partner_reached_user_dest: "home.nextHandOver",
-  on_the_way: "home.nextHandOver",
-  returning_to_restaurant: "home.nextReturn",
-};
 
 export default function HomeScreen() {
   const router = useRouter();

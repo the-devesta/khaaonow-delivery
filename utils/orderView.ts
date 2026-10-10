@@ -143,3 +143,15 @@ export function transformApiOrder(raw: any) {
   };
 }
 export type OrderView = ReturnType<typeof transformApiOrder>;
+
+/** i18n key for the rider's next step on an active order. */
+export const NEXT_STEP_KEY: Record<string, string> = {
+  delivery_partner_accepted: "home.nextGoRestaurant",
+  accepted: "home.nextGoRestaurant",
+  delivery_partner_reached: "home.nextPickUp",
+  delivery_partner_picked_up: "home.nextGoCustomer",
+  picked_up: "home.nextGoCustomer",
+  delivery_partner_reached_user_dest: "home.nextHandOver",
+  on_the_way: "home.nextHandOver",
+  returning_to_restaurant: "home.nextReturn",
+};
