@@ -41,6 +41,7 @@ export default function ProfileScreen() {
   const [showUpdate, setShowUpdate] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [pushOn, setPushOn] = useState(false);
+  const [photoFailed, setPhotoFailed] = useState(false);
   const [stats, setStats] = useState<{ rating?: number; completedOrders?: number }>({});
 
   const loadStats = async () => {
@@ -117,7 +118,8 @@ export default function ProfileScreen() {
     ]);
 
   const updateReady = appUpdate.result?.status === "update_available";
-  const vehicle = [p?.vehicleType, p?.vehicleNumber].filter(Boolean).join(" · ");
+  const vehicleType = p?.vehicleType ? String(p.vehicleType).charAt(0).toUpperCase() + String(p.vehicleType).slice(1) : "";
+  const vehicle = [vehicleType, p?.vehicleNumber].filter(Boolean).join(" · ");
   const photo = p?.profilePhoto || p?.avatar;
   const payoutLabel = p?.upiId || (p?.bankAccountNumber ? `•••• ${String(p.bankAccountNumber).slice(-4)}` : t("me.notAdded"));
 
@@ -137,8 +139,12 @@ export default function ProfileScreen() {
         }>
         <Card>
           <View className="flex-row items-center gap-4">
-            {photo && /^https?:/.test(photo) ? (
-              <Image source={{ uri: photo }} style={{ width: 64, height: 64, borderRadius: 32 }} />
+            {photo && /^https?:/.test(photo) && !photoFailed ? (
+              <Image
+                source={{ uri: photo }}
+                onError={() => setPhotoFailed(true)}
+                style={{ width: 64, height: 64, borderRadius: 32, backgroundColor: color.brand }}
+              />
             ) : (
               <View className="w-16 h-16 rounded-full bg-brand items-center justify-center">
                 <Text className="text-xl font-extrabold text-ink">{initials(p?.name)}</Text>

@@ -15,13 +15,15 @@ export default function PayoutAccount() {
   const [mode, setMode] = useState<"upi" | "bank">(partner?.upiId || !partner?.bankAccountNumber ? "upi" : "bank");
   const [upi, setUpi] = useState<string>(partner?.upiId ?? "");
   const [holder, setHolder] = useState<string>(partner?.bankAccountName ?? partner?.name ?? "");
-  const [account, setAccount] = useState<string>(partner?.bankAccountNumber ?? "");
+  // The saved account number comes back masked; only send it if retyped.
+  const savedAccount: string = partner?.bankAccountNumber ?? "";
+  const [account, setAccount] = useState<string>("");
   const [ifsc, setIfsc] = useState<string>(partner?.bankIFSC ?? "");
   const [saving, setSaving] = useState(false);
 
   const upiOk = /^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(upi.trim());
   const ifscOk = /^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc.trim().toUpperCase());
-  const accountOk = /^\d{9,18}$/.test(account);
+  const accountOk = /^\d{9,18}$/.test(account) || (!account && Boolean(savedAccount));
   const ready = mode === "upi" ? upiOk : holder.trim().length >= 2 && accountOk && ifscOk;
 
   const save = async () => {
@@ -30,7 +32,12 @@ export default function PayoutAccount() {
       mode === "upi"
         ? // Clear the bank account so payouts move to this UPI ID.
           { upiId: upi.trim(), bankAccountName: null, bankAccountNumber: null, bankIFSC: null }
-        : { bankAccountName: holder.trim(), bankAccountNumber: account, bankIFSC: ifsc.trim().toUpperCase(), upiId: null },
+        : {
+            bankAccountName: holder.trim(),
+            ...(account ? { bankAccountNumber: account } : {}),
+            bankIFSC: ifsc.trim().toUpperCase(),
+            upiId: null,
+          },
     );
     setSaving(false);
     if (!res.success) {
@@ -71,6 +78,8 @@ export default function PayoutAccount() {
             value={account}
             onChangeText={(v) => setAccount(v.replace(/\D/g, ""))}
             keyboardType="number-pad"
+            placeholder={savedAccount || undefined}
+            hint={savedAccount && !account ? t("me.savedAccount", { account: savedAccount }) : undefined}
             error={account && !accountOk ? t("signup.accountInvalid") : undefined}
           />
           <Field

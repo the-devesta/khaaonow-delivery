@@ -9,7 +9,9 @@ import {
   DeliveryPayoutLedgerOrder,
   DeliveryPayoutPeriod,
 } from "@/services/api";
+import { useAuthStore } from "@/store/auth";
 import { color } from "@/theme/tokens";
+import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -24,6 +26,7 @@ type DayGroup = { key: string; label: string; total: number; orders: DeliveryPay
 
 export default function EarningsScreen() {
   const { t } = useTranslation();
+  const router = useRouter();
   const [period, setPeriod] = useState<DeliveryPayoutPeriod>("week");
   const [ledger, setLedger] = useState<DeliveryPayoutLedger | null>(null);
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,8 @@ export default function EarningsScreen() {
     return [...map.values()].sort((a, b) => new Date(b.key).getTime() - new Date(a.key).getTime());
   }, [ledger]);
 
+  const partner = useAuthStore((st) => st.partner) as any;
+  const hasPayoutAccount = Boolean(partner?.upiId || partner?.bankAccountNumber);
   const summary = ledger?.summary;
   const cash = ledger?.cash;
   const payable = summary?.payableAmount ?? 0;
@@ -98,7 +103,11 @@ export default function EarningsScreen() {
           <Text className="text-sm" style={{ color: color.faint }}>
             {summary?.nextPayoutDate ? t("earn.nextPayout", { date: day(summary.nextPayoutDate) }) : t("earn.paidWeekly")}
           </Text>
-          {payable > 0 ? (
+          {!hasPayoutAccount ? (
+            <View className="mt-3">
+              <Button title={t("earn.addPayout")} icon="wallet-outline" onPress={() => router.push("/profile/payments")} />
+            </View>
+          ) : payable > 0 ? (
             <View className="mt-3">
               <Button title={t("earn.requestNow")} icon="cash-outline" loading={requesting} onPress={requestPayout} />
             </View>

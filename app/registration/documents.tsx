@@ -37,9 +37,11 @@ export default function DocumentsStep() {
     if (!res.success) Alert.alert(t("signup.saveFailed"), res.message || t("common.tryAgain"));
   };
 
+  // A masked value (e.g. "********9012") means it is already saved.
+  const isSaved = (v: string) => v.includes("*");
   const aadhaarDigits = aadhaar.replace(/\s/g, "");
-  const aadhaarOk = /^\d{12}$/.test(aadhaarDigits);
-  const panOk = /^[A-Z]{5}\d{4}[A-Z]$/.test(pan.trim().toUpperCase());
+  const aadhaarOk = isSaved(aadhaar) || /^\d{12}$/.test(aadhaarDigits);
+  const panOk = isSaved(pan) || /^[A-Z]{5}\d{4}[A-Z]$/.test(pan.trim().toUpperCase());
   const required: DocField[] = ["aadhaarPhoto", "panPhoto", "profilePhoto", ...(motor ? (["drivingLicensePhoto", "rcPhoto"] as DocField[]) : [])];
   const missing = required.filter((f) => !docs[f]).length;
   const ready = aadhaarOk && panOk && missing === 0;
@@ -47,7 +49,10 @@ export default function DocumentsStep() {
   const save = async () => {
     setSaving(true);
     try {
-      const res = await ApiService.uploadDocuments({ aadhaarNumber: aadhaarDigits, panNumber: pan.trim().toUpperCase() });
+      const res = await ApiService.uploadDocuments({
+        ...(isSaved(aadhaar) ? {} : { aadhaarNumber: aadhaarDigits }),
+        ...(isSaved(pan) ? {} : { panNumber: pan.trim().toUpperCase() }),
+      });
       if (!res.success) throw new Error(res.message);
       await fetchProfile();
       router.replace("/registration/payout");
@@ -82,6 +87,7 @@ export default function DocumentsStep() {
         label={t("signup.aadhaarNumber")}
         value={aadhaar}
         onChangeText={(v) => setAadhaar(v.replace(/[^\d\s]/g, "").slice(0, 14))}
+        onFocus={() => isSaved(aadhaar) && setAadhaar("")}
         keyboardType="number-pad"
         placeholder="1234 5678 9012"
         error={aadhaar && !aadhaarOk ? t("signup.aadhaarInvalid") : undefined}
@@ -90,6 +96,7 @@ export default function DocumentsStep() {
         label={t("signup.panNumber")}
         value={pan}
         onChangeText={(v) => setPan(v.toUpperCase().slice(0, 10))}
+        onFocus={() => isSaved(pan) && setPan("")}
         autoCapitalize="characters"
         placeholder="ABCDE1234F"
         error={pan && !panOk ? t("signup.panInvalid") : undefined}

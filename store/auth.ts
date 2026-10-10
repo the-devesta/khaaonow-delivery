@@ -78,8 +78,18 @@ const normalizeStatus = (status?: string | null) =>
 const normalizePartner = (partner: any): DeliveryPartner | null => {
   if (!partner) return null;
 
+  // Older backends only send bank details / documents nested; flatten them
+  // so signup resume and the payout account work either way.
+  const bank = partner.bankDetails || {};
+  const docs = partner.documents || {};
   return {
+    bankAccountName: bank.accountName,
+    bankAccountNumber: bank.accountNumber,
+    bankIFSC: bank.ifsc,
+    bankAccountPhoto: bank.photoUrl,
+    ...docs,
     ...partner,
+    upiId: partner.upiId ?? bank.upiId,
     id: partner.id || partner._id,
     onboardingStatus:
       normalizeStatus(partner.onboardingStatus) ||

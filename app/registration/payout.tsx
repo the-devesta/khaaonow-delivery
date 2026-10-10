@@ -17,7 +17,8 @@ export default function PayoutStep() {
   const [mode, setMode] = useState<"upi" | "bank">(partner?.bankAccountNumber ? "bank" : "upi");
   const [upi, setUpi] = useState<string>(partner?.upiId ?? "");
   const [holder, setHolder] = useState<string>(partner?.bankAccountName ?? partner?.name ?? "");
-  const [account, setAccount] = useState<string>(partner?.bankAccountNumber ?? "");
+  // Saved numbers come back masked; the rider retypes to resubmit.
+  const [account, setAccount] = useState<string>(String(partner?.bankAccountNumber ?? "").includes("*") ? "" : partner?.bankAccountNumber ?? "");
   const [ifsc, setIfsc] = useState<string>(partner?.bankIFSC ?? "");
   const [proof, setProof] = useState<string | undefined>(partner?.bankAccountPhoto);
   const [saving, setSaving] = useState(false);
