@@ -40,7 +40,7 @@ export default function LoginScreen() {
     <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1, backgroundColor: color.brand }}>
       <ScrollView
         keyboardShouldPersistTaps="handled"
-        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 8, paddingBottom: insets.bottom + 16 }}>
+        contentContainerStyle={{ flexGrow: 1, paddingTop: insets.top + 8 }}>
         <View className="flex-row justify-end px-4">
           <LanguageSwitchButton variant="light" />
         </View>
@@ -51,7 +51,7 @@ export default function LoginScreen() {
           <Text className="text-base text-ink-soft text-center">{t("login.subtitle")}</Text>
         </View>
 
-        <View className="flex-1 bg-canvas rounded-t-[32px] px-5 pt-7 gap-4">
+        <View style={{ paddingBottom: insets.bottom + 16 }} className="flex-1 bg-canvas rounded-t-[32px] px-5 pt-7 gap-4">
           <Text className="text-lg font-bold text-ink">{t("login.enterPhone")}</Text>
           <View
             style={{ minHeight: TOUCH + 8, borderColor: localError ? color.danger : color.ink }}

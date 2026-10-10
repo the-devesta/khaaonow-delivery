@@ -55,13 +55,16 @@ export function Screen({
       {(title || back) && (
         <View
           style={{ paddingTop: insets.top + 6 }}
-          className="bg-surface border-b border-line px-2 pb-2.5">
+          className="bg-surface border-b border-line px-2 pb-2.5"
+        >
           <View className="flex-row items-center min-h-[44px]">
             {back ? (
               <IconButton
                 icon="chevron-back"
                 label="Back"
-                onPress={typeof back === "function" ? back : () => router.back()}
+                onPress={
+                  typeof back === "function" ? back : () => router.back()
+                }
               />
             ) : (
               <View className="w-2" />
@@ -85,10 +88,13 @@ export function Screen({
       {scroll ? (
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: footer ? 16 : insets.bottom + 24 }}
+          contentContainerStyle={{
+            paddingBottom: footer ? 16 : insets.bottom + 24,
+          }}
           keyboardShouldPersistTaps="handled"
           refreshControl={refreshControl}
-          showsVerticalScrollIndicator={false}>
+          showsVerticalScrollIndicator={false}
+        >
           {body}
         </ScrollView>
       ) : (
@@ -105,7 +111,8 @@ export function BottomBar({ children }: { children: React.ReactNode }) {
   return (
     <View
       style={{ paddingBottom: Math.max(insets.bottom, 12) }}
-      className="bg-surface border-t border-line px-4 pt-3 gap-2">
+      className="bg-surface border-t border-line px-4 pt-3 gap-2"
+    >
       {children}
     </View>
   );
@@ -113,12 +120,20 @@ export function BottomBar({ children }: { children: React.ReactNode }) {
 
 /* ------------------------------------------------------------------ Button */
 
-type ButtonVariant = "primary" | "dark" | "outline" | "danger" | "success" | "ghost";
+type ButtonVariant =
+  "primary" | "dark" | "outline" | "danger" | "success" | "ghost";
 
-const BUTTON_STYLES: Record<ButtonVariant, { box: string; text: string; spinner: string }> = {
+const BUTTON_STYLES: Record<
+  ButtonVariant,
+  { box: string; text: string; spinner: string }
+> = {
   primary: { box: "bg-brand", text: "text-ink", spinner: color.ink },
   dark: { box: "bg-ink", text: "text-white", spinner: "#fff" },
-  outline: { box: "bg-surface border border-line", text: "text-ink", spinner: color.ink },
+  outline: {
+    box: "bg-surface border border-line",
+    text: "text-ink",
+    spinner: color.ink,
+  },
   danger: { box: "bg-danger", text: "text-white", spinner: "#fff" },
   success: { box: "bg-success", text: "text-white", spinner: "#fff" },
   ghost: { box: "bg-transparent", text: "text-ink", spinner: color.ink },
@@ -152,28 +167,42 @@ export function Button({
       onPress={onPress}
       disabled={inactive}
       style={({ pressed }) => [
-        { minHeight: size === "lg" ? TOUCH + 4 : 44, opacity: inactive ? 0.5 : pressed ? 0.85 : 1 },
+        { opacity: inactive ? 0.5 : pressed ? 0.85 : 1 },
         style,
       ]}
-      className={`flex-row items-center justify-center rounded-2xl px-5 gap-2 ${v.box}`}>
-      {loading ? (
-        <ActivityIndicator color={v.spinner} />
-      ) : (
-        <>
-          {icon ? (
-            <Ionicons
-              name={icon}
-              size={size === "lg" ? 20 : 18}
-              color={variant === "primary" || variant === "outline" || variant === "ghost" ? color.ink : "#fff"}
-            />
-          ) : null}
-          <Text
-            numberOfLines={1}
-            className={`${size === "lg" ? "text-base" : "text-sm"} font-bold ${v.text}`}>
-            {title}
-          </Text>
-        </>
-      )}
+    >
+      {/* Layout lives on an inner View: NativeWind drops function-style values
+          (minHeight) when className is set on the Pressable itself. */}
+      <View
+        style={{ minHeight: size === "lg" ? TOUCH + 4 : 44, opacity: inactive ? 0.45 : 1 }}
+        className={`flex-row items-center justify-center rounded-2xl px-5 gap-2 ${v.box}`}
+      >
+        {loading ? (
+          <ActivityIndicator color={v.spinner} />
+        ) : (
+          <>
+            {icon ? (
+              <Ionicons
+                name={icon}
+                size={size === "lg" ? 20 : 18}
+                color={
+                  variant === "primary" ||
+                  variant === "outline" ||
+                  variant === "ghost"
+                    ? color.ink
+                    : "#fff"
+                }
+              />
+            ) : null}
+            <Text
+              numberOfLines={1}
+              className={`${size === "lg" ? "text-base" : "text-sm"} font-bold ${v.text}`}
+            >
+              {title}
+            </Text>
+          </>
+        )}
+      </View>
     </Pressable>
   );
 }
@@ -189,7 +218,12 @@ export function IconButton({
   onPress?: () => void;
   tone?: "plain" | "soft" | "brand";
 }) {
-  const bg = tone === "brand" ? color.brand : tone === "soft" ? color.canvas : "transparent";
+  const bg =
+    tone === "brand"
+      ? color.brand
+      : tone === "soft"
+        ? color.canvas
+        : "transparent";
   return (
     <Pressable
       accessibilityRole="button"
@@ -204,7 +238,8 @@ export function IconButton({
         justifyContent: "center",
         backgroundColor: bg,
         opacity: pressed ? 0.7 : 1,
-      })}>
+      })}
+    >
       <Ionicons name={icon} size={22} color={color.ink} />
     </Pressable>
   );
@@ -226,22 +261,34 @@ export function Card({
   const inner = (
     <View
       style={style}
-      className={`bg-surface rounded-3xl border border-line ${padded ? "p-4" : ""}`}>
+      className={`bg-surface rounded-3xl border border-line ${padded ? "p-4" : ""}`}
+    >
       {children}
     </View>
   );
   if (!onPress) return inner;
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}>
+    <Pressable
+      onPress={onPress}
+      style={({ pressed }) => ({ opacity: pressed ? 0.85 : 1 })}
+    >
       {inner}
     </Pressable>
   );
 }
 
-export function SectionTitle({ title, action }: { title: string; action?: React.ReactNode }) {
+export function SectionTitle({
+  title,
+  action,
+}: {
+  title: string;
+  action?: React.ReactNode;
+}) {
   return (
     <View className="flex-row items-center justify-between mt-2 px-1">
-      <Text className="text-sm font-bold text-muted uppercase tracking-wide">{title}</Text>
+      <Text className="text-sm font-bold text-muted uppercase tracking-wide">
+        {title}
+      </Text>
       {action}
     </View>
   );
@@ -270,24 +317,42 @@ export function ListRow({
     <Pressable
       disabled={!onPress}
       onPress={onPress}
-      style={({ pressed }) => ({ minHeight: TOUCH, opacity: pressed ? 0.7 : 1 })}
-      className="flex-row items-center gap-3 px-4 py-3">
-      {icon ? (
-        <View
-          className={`w-10 h-10 rounded-full items-center justify-center ${
-            danger ? "bg-danger-soft" : "bg-canvas"
-          }`}>
-          <Ionicons name={icon} size={20} color={danger ? color.danger : color.ink} />
+      style={({ pressed }) => ({ opacity: pressed ? 0.7 : 1 })}
+    >
+      <View
+        style={{ minHeight: TOUCH }}
+        className="flex-row items-center gap-3 px-4 py-3"
+      >
+        {icon ? (
+          <View
+            className={`w-10 h-10 rounded-full items-center justify-center ${
+              danger ? "bg-danger-soft" : "bg-canvas"
+            }`}
+          >
+            <Ionicons
+              name={icon}
+              size={20}
+              color={danger ? color.danger : color.ink}
+            />
+          </View>
+        ) : null}
+        <View className="flex-1">
+          <Text
+            className={`text-base font-semibold ${danger ? "text-danger" : "text-ink"}`}
+          >
+            {title}
+          </Text>
+          {subtitle ? (
+            <Text className="text-sm text-muted">{subtitle}</Text>
+          ) : null}
         </View>
-      ) : null}
-      <View className="flex-1">
-        <Text className={`text-base font-semibold ${danger ? "text-danger" : "text-ink"}`}>
-          {title}
-        </Text>
-        {subtitle ? <Text className="text-sm text-muted">{subtitle}</Text> : null}
+        {value ? (
+          <Text className="text-base font-semibold text-ink">{value}</Text>
+        ) : null}
+        {chevron ? (
+          <Ionicons name="chevron-forward" size={18} color={color.faint} />
+        ) : null}
       </View>
-      {value ? <Text className="text-base font-semibold text-ink">{value}</Text> : null}
-      {chevron ? <Ionicons name="chevron-forward" size={18} color={color.faint} /> : null}
     </Pressable>
   );
 }
@@ -318,7 +383,13 @@ const PILL: Record<Tone, string> = {
   info: "bg-info-soft text-info",
 };
 
-export function Pill({ label, tone = "neutral" }: { label: string; tone?: Tone }) {
+export function Pill({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: Tone;
+}) {
   const [bg, text] = PILL[tone].split(" ");
   return (
     <View className={`self-start rounded-full px-2.5 py-1 ${bg}`}>
@@ -346,7 +417,9 @@ export function EmptyState({
         <Ionicons name={icon} size={28} color={color.faint} />
       </View>
       <Text className="text-lg font-bold text-ink text-center">{title}</Text>
-      {body ? <Text className="text-sm text-muted text-center">{body}</Text> : null}
+      {body ? (
+        <Text className="text-sm text-muted text-center">{body}</Text>
+      ) : null}
       {action ? <View className="mt-3 self-stretch">{action}</View> : null}
     </View>
   );
@@ -365,8 +438,18 @@ export function Banner({
   body?: string;
   action?: React.ReactNode;
 }) {
-  const bg = { warning: "bg-warning-soft", danger: "bg-danger-soft", info: "bg-info-soft", success: "bg-success-soft" }[tone];
-  const fg = { warning: color.warning, danger: color.danger, info: color.info, success: color.success }[tone];
+  const bg = {
+    warning: "bg-warning-soft",
+    danger: "bg-danger-soft",
+    info: "bg-info-soft",
+    success: "bg-success-soft",
+  }[tone];
+  const fg = {
+    warning: color.warning,
+    danger: color.danger,
+    info: color.info,
+    success: color.success,
+  }[tone];
   return (
     <View className={`rounded-2xl p-3.5 flex-row gap-3 ${bg}`}>
       <Ionicons name={icon} size={22} color={fg} />
@@ -438,7 +521,8 @@ export function Choice({
       style={{ minHeight: TOUCH + 12 }}
       className={`flex-1 rounded-2xl border-2 p-3.5 gap-1 ${
         selected ? "border-ink bg-brand-soft" : "border-line bg-surface"
-      }`}>
+      }`}
+    >
       {icon ? <Ionicons name={icon} size={24} color={color.ink} /> : null}
       <Text className="text-base font-bold text-ink">{title}</Text>
       {subtitle ? <Text className="text-xs text-muted">{subtitle}</Text> : null}
@@ -474,8 +558,13 @@ export function Segmented<T extends string>({
             accessibilityState={{ selected: active }}
             onPress={() => onChange(o.value)}
             style={{ minHeight: 40 }}
-            className={`flex-1 items-center justify-center rounded-xl ${active ? "bg-ink" : ""}`}>
-            <Text className={`text-sm font-bold ${active ? "text-white" : "text-ink-soft"}`}>{o.label}</Text>
+            className={`flex-1 items-center justify-center rounded-xl ${active ? "bg-ink" : ""}`}
+          >
+            <Text
+              className={`text-sm font-bold ${active ? "text-white" : "text-ink-soft"}`}
+            >
+              {o.label}
+            </Text>
           </Pressable>
         );
       })}
