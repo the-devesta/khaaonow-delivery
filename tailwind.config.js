@@ -20,21 +20,19 @@ module.exports = {
         "3xl": ["30px", { lineHeight: "45px" }],
         "4xl": ["36px", { lineHeight: "54px" }],
       },
+      // Mirrors theme/tokens.ts — keep the two in sync.
       colors: {
-        primary: {
-          DEFAULT: "#FFD600", // Yellow/Amber
-          50: "#FFFDE7",
-          100: "#FFF9C4",
-          200: "#FFF59D",
-          300: "#FFF176",
-          400: "#FFEE58",
-          500: "#FFEB3B",
-          600: "#FDD835",
-          700: "#FBC02D",
-          800: "#F9A825",
-          900: "#F57F17",
-        },
-        secondary: "#3F2E05", // Dark brown/black for contrast
+        brand: { DEFAULT: "#FFD233", dark: "#E6B800", soft: "#FFF6CC" },
+        ink: { DEFAULT: "#111827", soft: "#374151" },
+        muted: "#6B7280",
+        faint: "#9CA3AF",
+        line: "#E5E7EB",
+        canvas: "#F6F6F3",
+        surface: "#FFFFFF",
+        success: { DEFAULT: "#16A34A", soft: "#DCFCE7" },
+        danger: { DEFAULT: "#DC2626", soft: "#FEE2E2" },
+        warning: { DEFAULT: "#D97706", soft: "#FEF3C7" },
+        info: { DEFAULT: "#2563EB", soft: "#DBEAFE" },
       },
     },
   },
