@@ -21,22 +21,17 @@ import {
   Screen,
   rupees,
 } from "@/components/kit";
-import HandoverSheet, { HandoverResult } from "@/components/order/HandoverSheet";
 import StepStrip from "@/components/order/StepStrip";
 import { useLocationTracking } from "@/hooks/useLocationTracking";
 import { ApiService } from "@/services/api";
 import { subscribeToOrderPayment } from "@/services/realtime.service";
 import { socketService } from "@/services/socket";
-import { uploadImageToFirebase } from "@/services/storage";
 import { Location, useOrderStore } from "@/store/orders";
 import { color } from "@/theme/tokens";
 import { formatAddressText, OrderView, transformApiOrder } from "@/utils/orderView";
 import { openPhoneDialer } from "@/utils/phone";
 import { Ionicons } from "@expo/vector-icons";
 import * as Clipboard from "expo-clipboard";
-import * as Device from "expo-device";
-import * as ExpoLocation from "expo-location";
-import * as ImagePicker from "expo-image-picker";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -93,7 +88,6 @@ export default function OrderScreen() {
     activeOrder,
     activeOrders,
     updateOrderStatus,
-    completeOrder,
     releaseActiveOrder,
     setDriverLocation,
     confirmReturnedToRestaurant,
@@ -105,7 +99,6 @@ export default function OrderScreen() {
   const [busy, setBusy] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [paidNow, setPaidNow] = useState(false);
-  const [handoverOpen, setHandoverOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
 
   const matchedActiveOrder =
@@ -246,86 +239,6 @@ export default function OrderScreen() {
     }
   };
 
-  const ensureLocation = async (): Promise<Location | null> => {
-    if (driverLocation) return driverLocation;
-    const { status } = await ExpoLocation.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(t("order.locationNeeded"), t("order.locationNeededBody"));
-      return null;
-    }
-    const pos = await ExpoLocation.getCurrentPositionAsync({ accuracy: ExpoLocation.Accuracy.High });
-    const loc = { latitude: pos.coords.latitude, longitude: pos.coords.longitude };
-    setDriverLoc(loc);
-    setDriverLocation(loc);
-    return loc;
-  };
-
-  const takeProofPhoto = async (): Promise<string | null> => {
-    if (!Device.isDevice) {
-      // Simulators have no camera; pick from the library instead.
-      const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      if (perm.status !== "granted") return null;
-      const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ["images"], quality: 0.65 });
-      if (res.canceled || !res.assets?.[0]?.uri) return null;
-      return uploadImageToFirebase(res.assets[0].uri, "delivery_proofs");
-    }
-    const perm = await ImagePicker.requestCameraPermissionsAsync();
-    if (perm.status !== "granted") {
-      Alert.alert(t("order.cameraNeeded"), t("order.cameraNeededBody"));
-      return null;
-    }
-    const res = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.65 });
-    if (res.canceled || !res.assets?.[0]?.uri) return null;
-    return uploadImageToFirebase(res.assets[0].uri, "delivery_proofs");
-  };
-
-  const finishDelivery = async ({ otpVerified, needPhoto }: HandoverResult) => {
-    setHandoverOpen(false);
-    if (otpVerified) setPaidNow(true);
-    setBusy(true);
-    try {
-      const loc = await ensureLocation();
-      if (!loc) return;
-
-      let proofPhotoUrl: string | undefined;
-      if (needPhoto) {
-        proofPhotoUrl = (await takeProofPhoto()) ?? undefined;
-        if (!proofPhotoUrl) return;
-      } else {
-        // A verified code is the proof. If the server still asks for a
-        // photo (older backend), fall back to taking one.
-        const res = await ApiService.updateOrderStatus(String(order.id), "delivered", {
-          currentLocation: loc,
-        });
-        if (res.success) {
-          completeOrder(String(order.id));
-          router.replace({ pathname: "/(tabs)", params: { delivered: String(order.id) } });
-          return;
-        }
-        if (!/proof|photo/i.test(res.message || "")) {
-          Alert.alert(t("order.couldNotComplete"), res.message || t("common.tryAgain"));
-          return;
-        }
-        proofPhotoUrl = (await takeProofPhoto()) ?? undefined;
-        if (!proofPhotoUrl) return;
-      }
-
-      const ok = await updateOrderStatus("delivered", {
-        orderId: String(order.id),
-        currentLocation: loc,
-        proofPhotoUrl,
-      });
-      if (ok) {
-        completeOrder(String(order.id));
-        router.replace({ pathname: "/(tabs)", params: { delivered: String(order.id) } });
-      }
-    } catch (error: any) {
-      Alert.alert(t("order.couldNotComplete"), error?.message || t("common.tryAgain"));
-    } finally {
-      setBusy(false);
-    }
-  };
-
   const reportDelay = () => {
     setHelpOpen(false);
     Alert.alert(t("order.reportDelay"), t("order.reportDelayBody"), [
@@ -395,7 +308,7 @@ export default function OrderScreen() {
                   title: collectAmount ? t("order.collectAndDeliver", { amount: rupees(collectAmount) }) : t("order.handOver"),
                   icon: "checkmark-circle",
                   variant: "success",
-                  onPress: () => setHandoverOpen(true),
+                  onPress: () => router.push({ pathname: "/orders/handover/[id]", params: { id: String(order.id) } }),
                 }
               : phase === "returning"
                 ? { title: t("order.returnedToRestaurant"), icon: "return-up-back", variant: "danger", onPress: confirmReturned }
@@ -551,15 +464,6 @@ export default function OrderScreen() {
         </Card>
       </Screen>
 
-      <HandoverSheet
-        visible={handoverOpen}
-        orderId={String(order.id)}
-        amount={order.totalAmount}
-        isCash={isCash}
-        isPaid={isPaid}
-        onClose={() => setHandoverOpen(false)}
-        onDone={finishDelivery}
-      />
 
       {/* Need help? — every non-primary action lives here */}
       <Modal visible={helpOpen} transparent animationType="fade" onRequestClose={() => setHelpOpen(false)}>

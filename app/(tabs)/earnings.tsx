@@ -2,7 +2,7 @@
  * Earnings — what you'll be paid, what you earned, and cash you're holding.
  * Everything comes from the payout ledger; tap a day to see its trips.
  */
-import { Banner, Button, Card, EmptyState, ListGroup, ListRow, Pill, rupees, SectionTitle, Segmented } from "@/components/kit";
+import { Banner, Button, Card, EmptyState, ListGroup, ListRow, Pill, rupees, SectionTitle, Segmented, TabScreen } from "@/components/kit";
 import {
   ApiService,
   DeliveryPayoutLedger,
@@ -14,7 +14,6 @@ import { Ionicons } from "@expo/vector-icons";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Alert, Linking, Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const day = (value?: string) =>
   value ? new Date(value).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" }) : "—";
@@ -24,7 +23,6 @@ const time = (value?: string) =>
 type DayGroup = { key: string; label: string; total: number; orders: DeliveryPayoutLedgerOrder[] };
 
 export default function EarningsScreen() {
-  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const [period, setPeriod] = useState<DeliveryPayoutPeriod>("week");
   const [ledger, setLedger] = useState<DeliveryPayoutLedger | null>(null);
@@ -76,10 +74,9 @@ export default function EarningsScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: color.canvas }}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
+    <TabScreen
+      title={t("earn.title")}
+      refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
@@ -88,9 +85,7 @@ export default function EarningsScreen() {
               setRefreshing(false);
             }}
           />
-        }
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 120, gap: 12 }}>
-        <Text className="text-2xl font-extrabold text-ink">{t("earn.title")}</Text>
+      }>
 
         {/* What KhaaoNow owes you */}
         <View className="rounded-3xl p-5 gap-1" style={{ backgroundColor: color.ink }}>
@@ -218,7 +213,6 @@ export default function EarningsScreen() {
             </ListGroup>
           </>
         ) : null}
-      </ScrollView>
-    </View>
+    </TabScreen>
   );
 }

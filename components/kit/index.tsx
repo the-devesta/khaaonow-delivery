@@ -4,6 +4,7 @@
  * variant here over one-off styling in a screen.
  */
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -19,6 +20,11 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { color, TOUCH } from "@/theme/tokens";
+
+/** Light tap felt on every press, so riders know the app registered it. */
+const tap = () => {
+  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+};
 
 type IconName = React.ComponentProps<typeof Ionicons>["name"];
 
@@ -106,6 +112,64 @@ export function Screen({
 }
 
 /** Sticky footer that respects the home indicator. */
+/* --------------------------------------------------------------- TabScreen */
+
+/**
+ * Screen for the four tabs: a big title that stays pinned above the content
+ * (with its own background, so nothing scrolls under the status bar) and
+ * gains a divider once the list scrolls. Leaves room for the tab bar.
+ */
+export function TabScreen({
+  kicker,
+  title,
+  right,
+  children,
+  refreshControl,
+}: {
+  kicker?: string;
+  title: string;
+  right?: React.ReactNode;
+  children: React.ReactNode;
+  refreshControl?: React.ReactElement<any>;
+}) {
+  const insets = useSafeAreaInsets();
+  const [scrolled, setScrolled] = React.useState(false);
+  return (
+    <View style={{ flex: 1, backgroundColor: color.canvas }}>
+      <View
+        style={{
+          paddingTop: insets.top + 8,
+          backgroundColor: color.canvas,
+          borderBottomWidth: 1,
+          borderBottomColor: scrolled ? color.line : "transparent",
+        }}
+        className="px-4 pb-3 flex-row items-center"
+      >
+        <View className="flex-1">
+          {kicker ? <Text className="text-sm text-muted">{kicker}</Text> : null}
+          <Text numberOfLines={1} className="text-2xl font-extrabold text-ink">
+            {title}
+          </Text>
+        </View>
+        {right}
+      </View>
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        refreshControl={refreshControl}
+        scrollEventThrottle={32}
+        onScroll={(e) => {
+          const next = e.nativeEvent.contentOffset.y > 4;
+          if (next !== scrolled) setScrolled(next);
+        }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingTop: 4, paddingBottom: insets.bottom + 110, gap: 12 }}
+      >
+        {children}
+      </ScrollView>
+    </View>
+  );
+}
+
 export function BottomBar({ children }: { children: React.ReactNode }) {
   const insets = useSafeAreaInsets();
   return (
@@ -164,7 +228,14 @@ export function Button({
     <Pressable
       accessibilityRole="button"
       accessibilityState={{ disabled: inactive, busy: loading }}
-      onPress={onPress}
+      onPress={
+        onPress
+          ? () => {
+              tap();
+              onPress();
+            }
+          : undefined
+      }
       disabled={inactive}
       style={({ pressed }) => [
         { opacity: inactive ? 0.5 : pressed ? 0.85 : 1 },
@@ -517,7 +588,10 @@ export function Choice({
     <Pressable
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      onPress={onPress}
+      onPress={() => {
+        tap();
+        onPress();
+      }}
       style={{ minHeight: TOUCH + 12 }}
       className={`flex-1 rounded-2xl border-2 p-3.5 gap-1 ${
         selected ? "border-ink bg-brand-soft" : "border-line bg-surface"
@@ -556,7 +630,10 @@ export function Segmented<T extends string>({
             key={o.value}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
-            onPress={() => onChange(o.value)}
+            onPress={() => {
+              tap();
+              onChange(o.value);
+            }}
             style={{ minHeight: 40 }}
             className={`flex-1 items-center justify-center rounded-xl ${active ? "bg-ink" : ""}`}
           >

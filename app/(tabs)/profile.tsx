@@ -2,7 +2,7 @@
  * Profile — one list: your details, payout account, language, alerts, help,
  * app version, log out. Delete account sits at the very bottom.
  */
-import { Card, ListGroup, ListRow, Pill, SectionTitle } from "@/components/kit";
+import { Card, ListGroup, ListRow, Pill, SectionTitle, TabScreen } from "@/components/kit";
 import UpdateAppDialog from "@/components/UpdateAppDialog";
 import { useAppUpdateCheck } from "@/hooks/useAppUpdateCheck";
 import { AppLanguage, getLanguageLabel, LANGUAGES, setSavedLanguage } from "@/i18n";
@@ -20,7 +20,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, Image, Linking, RefreshControl, ScrollView, Switch, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const SUPPORT_PHONE = "+919875054898";
 const SUPPORT_WHATSAPP = "919875054898";
@@ -35,7 +34,6 @@ const initials = (name?: string) =>
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { t, i18n } = useTranslation();
   const { partner, phoneNumber, fetchProfile, logout } = useAuthStore();
   const p = partner as any;
@@ -125,8 +123,8 @@ export default function ProfileScreen() {
 
   return (
     <View style={{ flex: 1, backgroundColor: color.canvas }}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <TabScreen
+        title={t("me.title")}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -136,10 +134,7 @@ export default function ProfileScreen() {
               setRefreshing(false);
             }}
           />
-        }
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 120, gap: 12 }}>
-        <Text className="text-2xl font-extrabold text-ink">{t("me.title")}</Text>
-
+        }>
         <Card>
           <View className="flex-row items-center gap-4">
             {photo && /^https?:/.test(photo) ? (
@@ -213,7 +208,7 @@ export default function ProfileScreen() {
         <Text onPress={confirmDelete} className="text-sm text-muted text-center underline py-2">
           {t("me.deleteTitle")}
         </Text>
-      </ScrollView>
+      </TabScreen>
 
       {updateReady && appUpdate.result ? (
         <UpdateAppDialog visible={showUpdate} updateInfo={appUpdate.result as any} onDismiss={() => setShowUpdate(false)} />

@@ -1,5 +1,5 @@
 /** Trips — current deliveries (with the stop order when batched) and history. */
-import { Card, EmptyState, Pill, rupees, SectionTitle, Segmented } from "@/components/kit";
+import { Card, EmptyState, Pill, rupees, SectionTitle, Segmented, TabScreen } from "@/components/kit";
 import { useOrderStore } from "@/store/orders";
 import { color } from "@/theme/tokens";
 import { NEXT_STEP_KEY } from "@/utils/orderView";
@@ -8,7 +8,6 @@ import { useRouter } from "expo-router";
 import React, { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 type Tab = "active" | "delivered" | "cancelled";
 
@@ -19,7 +18,6 @@ const when = (value?: string | Date) =>
 
 export default function TripsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { orderHistory, activeOrder, activeOrders, routePlan, fetchOrderHistory, fetchAssignedOrders, fetchRoutePlan } =
     useOrderStore();
@@ -44,10 +42,9 @@ export default function TripsScreen() {
   const list = current === "active" ? active : all.filter((o) => o.status === current);
 
   return (
-    <View style={{ flex: 1, backgroundColor: color.canvas }}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        refreshControl={
+    <TabScreen
+      title={t("trips.title")}
+      refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={async () => {
@@ -56,10 +53,7 @@ export default function TripsScreen() {
               setRefreshing(false);
             }}
           />
-        }
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 120, gap: 12 }}>
-        <Text className="text-2xl font-extrabold text-ink">{t("trips.title")}</Text>
-
+      }>
         <Segmented
           value={current}
           onChange={setTab}
@@ -143,7 +137,6 @@ export default function TripsScreen() {
             </Card>
           ))
         )}
-      </ScrollView>
-    </View>
+    </TabScreen>
   );
 }

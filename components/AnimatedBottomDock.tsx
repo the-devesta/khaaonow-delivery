@@ -5,6 +5,7 @@
 import { useOrderStore } from "@/store/orders";
 import { color } from "@/theme/tokens";
 import { Ionicons } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import type { BottomTabBarProps } from "expo-router/build/react-navigation/bottom-tabs";
 import React, { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
@@ -59,6 +60,7 @@ export default function AnimatedBottomDock({
         const badge = route.name === "orders" && liveCount > 0 ? liveCount : 0;
 
         const onPress = () => {
+          Haptics.selectionAsync().catch(() => {});
           const event = navigation.emit({ type: "tabPress", target: route.key, canPreventDefault: true });
           if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params);
         };

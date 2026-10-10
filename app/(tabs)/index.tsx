@@ -5,7 +5,7 @@
  *   3. Order requests still waiting
  *   4. Today's earnings and deliveries
  */
-import { Banner, Button, Card, Pill, SectionTitle, rupees } from "@/components/kit";
+import { Banner, Button, Card, Pill, SectionTitle, TabScreen, rupees } from "@/components/kit";
 import { LanguageSwitchButton } from "@/components/LanguageSwitchButton";
 import LocationTrackingBanner from "@/components/LocationTrackingBanner";
 import MissedOrderCard from "@/components/orders/MissedOrderCard";
@@ -24,7 +24,6 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { ActivityIndicator, Alert, Pressable, RefreshControl, ScrollView, StatusBar, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 interface DashboardData {
   earnings: { today: number; week: number; month: number };
@@ -44,7 +43,6 @@ interface DashboardData {
 
 export default function HomeScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
   const { delivered } = useLocalSearchParams<{ delivered?: string }>();
   const [refreshing, setRefreshing] = useState(false);
@@ -190,8 +188,10 @@ export default function HomeScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: color.canvas }}>
       <StatusBar barStyle="dark-content" />
-      <ScrollView
-        showsVerticalScrollIndicator={false}
+      <TabScreen
+        kicker={t("home.hello")}
+        title={name || t("home.rider")}
+        right={<LanguageSwitchButton />}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -202,19 +202,7 @@ export default function HomeScreen() {
               setRefreshing(false);
             }}
           />
-        }
-        contentContainerStyle={{ paddingTop: insets.top + 8, paddingHorizontal: 16, paddingBottom: 120, gap: 12 }}>
-        {/* Header */}
-        <View className="flex-row items-center justify-between">
-          <View className="flex-1">
-            <Text className="text-sm text-muted">{t("home.hello")}</Text>
-            <Text className="text-2xl font-extrabold text-ink" numberOfLines={1}>
-              {name || t("home.rider")}
-            </Text>
-          </View>
-          <LanguageSwitchButton />
-        </View>
-
+        }>
         {justDelivered ? (
           <Banner tone="success" icon="checkmark-circle" title={t("home.deliveredTitle")} body={t("home.deliveredBody")} />
         ) : null}
@@ -336,7 +324,7 @@ export default function HomeScreen() {
             </Card>
           </View>
         </View>
-      </ScrollView>
+      </TabScreen>
 
       {pendingOrder ? (
         <OrderRequestModal
