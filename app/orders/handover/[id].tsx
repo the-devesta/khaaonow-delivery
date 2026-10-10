@@ -29,6 +29,9 @@ import { ActivityIndicator, Alert, KeyboardAvoidingView, Platform, Pressable, Te
 
 type Stage = "method" | "qr" | "code";
 
+/** Backend reason (e.g. "OTP has expired") instead of axios's "status code 400". */
+const reason = (e: any): string | undefined => e?.response?.data?.message || e?.message;
+
 export default function HandoverScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -128,7 +131,7 @@ export default function HandoverScreen() {
       const ok = await updateOrderStatus("delivered", { orderId: String(id), currentLocation: loc, proofPhotoUrl });
       if (ok) done();
     } catch (e: any) {
-      Alert.alert(t("order.couldNotComplete"), e?.message || t("common.tryAgain"));
+      Alert.alert(t("order.couldNotComplete"), reason(e) || t("common.tryAgain"));
     } finally {
       setFinishing(false);
     }
@@ -144,7 +147,7 @@ export default function HandoverScreen() {
       setSent(true);
       setTimeout(() => inputRef.current?.focus(), 250);
     } catch (e: any) {
-      setError(e?.message || t("handover.sendFailed"));
+      setError(e?.response?.data?.message || t("handover.sendFailed"));
     } finally {
       setSending(false);
     }
@@ -162,7 +165,7 @@ export default function HandoverScreen() {
       await finish(false);
     } catch (e: any) {
       void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
-      setError(e?.message || t("handover.wrongCode"));
+      setError(e?.response?.data?.message || t("handover.wrongCode"));
     } finally {
       setVerifying(false);
     }

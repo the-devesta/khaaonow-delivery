@@ -28,8 +28,9 @@ export default function PayoutAccount() {
     setSaving(true);
     const res = await ApiService.updateProfile(
       mode === "upi"
-        ? { upiId: upi.trim() }
-        : { bankAccountName: holder.trim(), bankAccountNumber: account, bankIFSC: ifsc.trim().toUpperCase() },
+        ? // Clear the bank account so payouts move to this UPI ID.
+          { upiId: upi.trim(), bankAccountName: null, bankAccountNumber: null, bankIFSC: null }
+        : { bankAccountName: holder.trim(), bankAccountNumber: account, bankIFSC: ifsc.trim().toUpperCase(), upiId: null },
     );
     setSaving(false);
     if (!res.success) {

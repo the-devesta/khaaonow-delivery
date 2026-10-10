@@ -147,8 +147,7 @@ export default function HomeScreen() {
       await toggleOnline();
       await fetchDashboard();
     } catch (error) {
-      console.error("Toggle online error:", error);
-      Alert.alert(t("common.failed"), t("common.tryAgain"));
+      Alert.alert(t("common.failed"), (error as Error)?.message || t("common.tryAgain"));
     } finally {
       setToggling(false);
     }

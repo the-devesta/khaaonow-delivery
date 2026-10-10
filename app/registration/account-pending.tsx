@@ -12,11 +12,16 @@ import React, { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Alert, BackHandler, ScrollView, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { signupEdit } from "@/utils/signupEdit";
 
 const SUPPORT_PHONE = "+919875054898";
 const PENDING_ROUTE = "/registration/account-pending";
 
 export default function AccountPending() {
+  // Back on the review screen: any "edit my details" detour is over.
+  useEffect(() => {
+    signupEdit.stop();
+  }, []);
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const { logout, fetchProfile, partner } = useAuthStore();
@@ -88,7 +93,10 @@ export default function AccountPending() {
 
       <ListGroup>
         <ListRow icon="call-outline" title={t("order.callSupport")} subtitle="+91 98750 54898" onPress={() => openPhoneDialer(SUPPORT_PHONE)} />
-        <ListRow icon="create-outline" title={t("pending.editDetails")} onPress={() => router.replace("/registration/about")} />
+        <ListRow icon="create-outline" title={t("pending.editDetails")} onPress={() => {
+            signupEdit.start();
+            router.replace("/registration/about");
+          }} />
         <ListRow
           icon="log-out-outline"
           title={t("pending.logout")}
