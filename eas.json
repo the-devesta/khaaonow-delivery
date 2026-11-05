@@ -32,20 +32,25 @@
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
         "EXPO_PUBLIC_API_URL": "https://5axnuhvpz7h2mjnrp2ledb7nmy0hmwkh.lambda-url.ap-south-1.on.aws/api",
         "EXPO_PUBLIC_ENABLE_SOCKET_FALLBACK": "false",
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAgvK2OviEztEkLdb3dAizrEdLDtP12pzU",
-        "EXPO_PUBLIC_SOCKET_URL": "https://5axnuhvpz7h2mjnrp2ledb7nmy0hmwkh.lambda-url.ap-south-1.on.aws"
+        "EXPO_PUBLIC_SOCKET_URL": "https://5axnuhvpz7h2mjnrp2ledb7nmy0hmwkh.lambda-url.ap-south-1.on.aws",
+        "EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY": "AIzaSyDkQsD4fCHrLhjMhqJ---5jwmN5uj-rDUI",
+        "EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY": "AIzaSyDSfzLQevKmJWP-mMu_LQpHN_Ayz15z6ic"
       }
     },
     "production": {
-      "autoIncrement": true,
+      "autoIncrement": false,
       "env": {
         "EXPO_PUBLIC_API_URL": "https://5axnuhvpz7h2mjnrp2ledb7nmy0hmwkh.lambda-url.ap-south-1.on.aws/api",
         "EXPO_PUBLIC_ENABLE_SOCKET_FALLBACK": "false",
-        "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyAgvK2OviEztEkLdb3dAizrEdLDtP12pzU",
-        "EXPO_PUBLIC_SOCKET_URL": "https://5axnuhvpz7h2mjnrp2ledb7nmy0hmwkh.lambda-url.ap-south-1.on.aws"
+        "EXPO_PUBLIC_SOCKET_URL": "https://5axnuhvpz7h2mjnrp2ledb7nmy0hmwkh.lambda-url.ap-south-1.on.aws",
+        "EXPO_PUBLIC_GOOGLE_MAPS_ANDROID_API_KEY": "AIzaSyDkQsD4fCHrLhjMhqJ---5jwmN5uj-rDUI",
+        "EXPO_PUBLIC_GOOGLE_MAPS_IOS_API_KEY": "AIzaSyDSfzLQevKmJWP-mMu_LQpHN_Ayz15z6ic"
       },
       "ios": {
         "resourceClass": "m-medium"
+      },
+      "android": {
+        "buildType": "app-bundle"
       }
     }
   },
