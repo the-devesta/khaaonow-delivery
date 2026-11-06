@@ -19,9 +19,32 @@ import "../global.css";
 // having ever mounted.
 import "@/tasks/backgroundLocationTask";
 import { useEffect } from "react";
+import { AppState } from "react-native";
+import * as Notifications from "expo-notifications";
+import { useAuthStore } from "@/store/auth";
+import { useOrderStore } from "@/store/orders";
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
+  const partnerId = useAuthStore((state) => state.partner?.id);
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const authToken = useAuthStore((state) => state.token);
+
+  // Root lifetime includes order/QR screens and direct links, not just the tabs.
+  useEffect(() => {
+    const cleanup = useOrderStore.getState().initializeRealtime();
+    const refresh = () => {
+      const store = useOrderStore.getState();
+      void store.fetchAvailableOrders();
+      void store.fetchAssignedOrders();
+    };
+    refresh();
+    const foreground = AppState.addEventListener("change", (state) => {
+      if (state === "active") refresh();
+    });
+    const push = Notifications.addNotificationReceivedListener(refresh);
+    return () => { foreground.remove(); push.remove(); cleanup(); };
+  }, [partnerId, isAuthenticated, authToken]);
 
   useEffect(() => {
     loadSavedLanguage();

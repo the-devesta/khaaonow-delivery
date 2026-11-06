@@ -112,6 +112,8 @@ export interface Order {
   paymentStatus?: "pending" | "completed" | "paid" | "failed";
   status: OrderStatus;
   createdAt: Date;
+  /** Audience-specific offer phase time from the authenticated availability API. */
+  offerAvailableAt?: number;
   pickupLocation?: Location;
   dropLocation?: Location;
   preparationTime?: number;
@@ -155,6 +157,7 @@ export interface MissedOrder {
 }
 
 interface OrderState {
+  orderOwnerId: string | null;
   activeOrder: Order | null;
   activeOrders: Order[];
   incomingOrder: Order | null;
@@ -170,6 +173,8 @@ interface OrderState {
 
   // Actions
   initializeSocket: () => void;
+  initializeRealtime: () => () => void;
+  removeAvailableOrder: (orderId: string) => void;
   setIncomingOrder: (order: Order | null) => void;
   acceptOrder: (orderId: string) => Promise<void>;
   rejectOrder: (orderId: string) => void;
@@ -286,6 +291,9 @@ function transformSocketOrder(order: any): Order {
     preparationTime: order.preparationTime,
     acceptanceTimeoutSeconds: order.acceptanceTimeoutSeconds,
     createdAt: new Date(order.createdAt),
+    offerAvailableAt: order.offerAvailableAt != null
+      ? (typeof order.offerAvailableAt === "number" ? order.offerAvailableAt : Date.parse(order.offerAvailableAt))
+      : undefined,
     pickupLocation: _pickupLoc,
     dropLocation: _dropLoc,
     returnReason:
@@ -328,12 +336,26 @@ const MISSED_ORDER_TTL_MS = 15 * 60 * 1000; // 15 minutes accept window (control
 const RING_FRESHNESS_MS = 5 * 60 * 1000;
 /** How long missed-order cards stay visible in "Pending Requests" before auto-pruning. */
 const MISSED_ORDER_DISPLAY_TTL_MS = 4 * 60 * 60 * 1000; // 4 hours
-let deliveryRealtimeCleanup: (() => void) | null = null;
+let offerGeneration = 0;
+let offerRevision = 0;
+let availabilityRefresh: Promise<void> | null = null;
+let availabilityRefreshAgain = false;
+function sameOrderSession(session: ReturnType<typeof useAuthStore.getState>, generation: number) {
+  const current = useAuthStore.getState();
+  return generation === offerGeneration && current.isAuthenticated &&
+    current.partner?.id === session.partner?.id && current.token === session.token;
+}
+function offerTime(order: Order): number {
+  const phaseTime = order.offerAvailableAt;
+  return phaseTime != null && Number.isFinite(phaseTime)
+    ? phaseTime : order.createdAt.getTime();
+}
 let socketFallbackHandlersRegistered = false;
 
 export const useOrderStore = create<OrderState>()(
   persist(
     (set, get) => ({
+      orderOwnerId: null,
       activeOrder: null,
       activeOrders: [],
       incomingOrder: null,
@@ -356,52 +378,13 @@ export const useOrderStore = create<OrderState>()(
 
         socketFallbackHandlersRegistered = true;
 
-        socketService.on("new-delivery-available", (order: any) => {
-          console.log("🔔 New delivery available:", order._id);
-          const transformedOrder = transformSocketOrder(order);
-
-          // Guard: don't set the same order twice (socket can fire duplicates)
-          const { pendingOrder: existingPending } = get();
-          if (existingPending?.id === order._id) {
-            console.log(
-              "🔔 Duplicate new-delivery-available ignored:",
-              order._id,
-            );
-            return;
-          }
-          set({
-            incomingOrder: transformedOrder,
-            pendingOrder: transformedOrder,
-            pendingOrderReceivedAt: Date.now(),
-          });
+        // Global/socket payloads are hints only; REST enforces priority eligibility.
+        socketService.on("new-delivery-available", () => {
+          void get().fetchAvailableOrders();
         });
-
         socketService.on("order-taken", (data: { orderId: string }) => {
-          console.log("⚠️ Order taken by another driver:", data.orderId);
-          const { pendingOrder, missedOrders } = get();
-
-          const update: Partial<ReturnType<typeof get>> = {};
-
-          // If this was the pending modal order, move it to missed with reason "taken"
-          if (pendingOrder && pendingOrder.id === data.orderId) {
-            const now = new Date();
-            const missedEntry: MissedOrder = {
-              order: pendingOrder,
-              missedAt: now,
-              expiresAt: new Date(now.getTime() + MISSED_ORDER_TTL_MS),
-              reason: "taken",
-              stillAvailable: false,
-            };
-            update.missedOrders = [
-              missedEntry,
-              ...missedOrders.filter((m) => m.order.id !== data.orderId),
-            ];
-            update.incomingOrder = null;
-            update.pendingOrder = null;
-            update.pendingOrderReceivedAt = null;
-          }
-
-          if (Object.keys(update).length > 0) set(update as any);
+          get().removeAvailableOrder(data.orderId);
+          void get().fetchAvailableOrders();
         });
 
         socketService.on("order-updated", (updatedOrder: any) => {
@@ -535,92 +518,41 @@ export const useOrderStore = create<OrderState>()(
           }
         });
 
-        if (!deliveryRealtimeCleanup) {
-          deliveryRealtimeCleanup = subscribeToDeliveryRealtime({
-            onAvailableOrder: (order: any, updatedAt?: number) => {
-              console.log("🔔 Firebase delivery available:", order._id || order.id);
-              const transformedOrder = transformSocketOrder(order);
-              const {
-                pendingOrder,
-                activeOrder,
-                activeOrders,
-                missedOrders,
-                orderHistory,
-                availableOrders,
-              } = get();
-              const orderId = transformedOrder.id;
-              const isTracked =
-                pendingOrder?.id === orderId ||
-                activeOrder?.id === orderId ||
-                activeOrders.some((active) => active.id === orderId) ||
-                missedOrders.some((missed) => missed.order.id === orderId) ||
-                orderHistory.some((history) => history.id === orderId);
+      },
 
-              const nextAvailable = availableOrders.some((o) => o.id === orderId)
-                ? availableOrders.map((o) =>
-                    o.id === orderId ? transformedOrder : o,
-                  )
-                : [transformedOrder, ...availableOrders];
-
-              const isFresh =
-                typeof updatedAt === "number" &&
-                Date.now() - updatedAt < RING_FRESHNESS_MS;
-
-              if (!isTracked && isFresh) {
-                set({
-                  availableOrders: nextAvailable,
-                  incomingOrder: transformedOrder,
-                  pendingOrder: transformedOrder,
-                  pendingOrderReceivedAt: Date.now(),
-                });
-                return;
-              }
-
-              if (!isTracked) {
-                const missedEntry: MissedOrder = {
-                  order: transformedOrder,
-                  missedAt: transformedOrder.createdAt,
-                  expiresAt: new Date(
-                    transformedOrder.createdAt.getTime() + MISSED_ORDER_TTL_MS,
-                  ),
-                  reason: "timeout",
-                  stillAvailable: true,
-                };
-                set({
-                  availableOrders: nextAvailable,
-                  missedOrders: [
-                    missedEntry,
-                    ...missedOrders.filter((m) => m.order.id !== orderId),
-                  ],
-                });
-                return;
-              }
-
-              set({ availableOrders: nextAvailable });
-            },
-            onOrderTaken: (orderId: string) => {
-              console.log("⚠️ Firebase order taken:", orderId);
-              const { pendingOrder, missedOrders } = get();
-              if (!pendingOrder || pendingOrder.id !== orderId) return;
-
-              const now = new Date();
-              const missedEntry: MissedOrder = {
-                order: pendingOrder,
-                missedAt: now,
-                expiresAt: new Date(now.getTime() + MISSED_ORDER_TTL_MS),
-                reason: "taken",
-                stillAvailable: false,
-              };
-              set({
-                missedOrders: [
-                  missedEntry,
-                  ...missedOrders.filter((m) => m.order.id !== orderId),
-                ],
-                incomingOrder: null,
-                pendingOrder: null,
-                pendingOrderReceivedAt: null,
-              });
-            },
+      initializeRealtime: () => {
+        const partnerId = useAuthStore.getState().partner?.id;
+        const clearScope = (ownerId: string | null) => set({
+          orderOwnerId: ownerId,
+          activeOrder: null, activeOrders: [], orderHistory: [], routePlan: null,
+          driverLocation: { latitude: 0, longitude: 0 }, loading: false,
+          incomingOrder: null, pendingOrder: null, pendingOrderReceivedAt: null,
+          availableOrders: [], missedOrders: [],
+        });
+        const signedIn = useAuthStore.getState().isAuthenticated && !!partnerId;
+        if (!signedIn || get().orderOwnerId !== partnerId) clearScope(signedIn ? partnerId! : null);
+        const reset = () => set({
+          incomingOrder: null, pendingOrder: null, pendingOrderReceivedAt: null,
+          availableOrders: [], missedOrders: [],
+        });
+        const generation = ++offerGeneration;
+        availabilityRefresh = null;
+        availabilityRefreshAgain = false;
+        reset();
+        if (!partnerId || !useAuthStore.getState().isAuthenticated) return () => {};
+        const cleanup = subscribeToDeliveryRealtime(partnerId, {
+          onOffersChanged: () => { void get().fetchAvailableOrders(); },
+          onOrderTaken: (orderId) => {
+            get().removeAvailableOrder(orderId);
+            void get().fetchAvailableOrders();
+          },
+          watchAssignedOrders: (listener) => {
+            const notify = () => listener(get().activeOrders.map((order) => order.id));
+            notify();
+            return useOrderStore.subscribe((state, previous) => {
+              if (state.activeOrders !== previous.activeOrders) notify();
+            });
+          },
             onOrderUpdated: (updatedOrder: any) => {
               const updatedId = updatedOrder._id || updatedOrder.id;
               if (!updatedId) return;
@@ -707,24 +639,56 @@ export const useOrderStore = create<OrderState>()(
                 }
               }
             },
-          });
-        }
+        });
+        void get().fetchAvailableOrders();
+        let stopped = false;
+        const stop = () => {
+          if (stopped) return;
+          stopped = true;
+          if (offerGeneration === generation) {
+            offerGeneration++;
+            availabilityRefresh = null;
+            reset();
+            const current = useAuthStore.getState();
+            if (!current.isAuthenticated || current.partner?.id !== partnerId) clearScope(null);
+          }
+          cleanup();
+        };
+        const session = useAuthStore.getState();
+        const stopWatching = useAuthStore.subscribe((state) => {
+          if (!state.isAuthenticated || state.partner?.id !== partnerId || state.token !== session.token) stop();
+        });
+        return () => { stopWatching(); stop(); };
       },
 
-      setIncomingOrder: (order) =>
+      removeAvailableOrder: (orderId) => {
+        offerRevision++;
+        const { pendingOrder, incomingOrder, missedOrders, availableOrders } = get();
         set({
-          incomingOrder: order,
-          pendingOrder: order,
-          pendingOrderReceivedAt: order ? Date.now() : null,
-        }),
+          availableOrders: availableOrders.filter((order) => order.id !== orderId),
+          missedOrders: missedOrders.map((missed) => missed.order.id === orderId
+            ? { ...missed, reason: "taken", stillAvailable: false } : missed),
+          ...(incomingOrder?.id === orderId ? { incomingOrder: null } : {}),
+          ...(pendingOrder?.id === orderId
+            ? { pendingOrder: null, pendingOrderReceivedAt: null } : {}),
+        });
+      },
+
+      setIncomingOrder: (order) => {
+        if (order) { void get().fetchAvailableOrders(); return; }
+        set({ incomingOrder: null, pendingOrder: null, pendingOrderReceivedAt: null });
+      },
 
       // ── Accept order ─────────────────────────────────────────────────────────────
       acceptOrder: async (orderId: string) => {
+        const session = useAuthStore.getState();
+        const generation = offerGeneration;
         try {
           set({ loading: true });
 
           const response = await ApiService.acceptOrder(orderId);
 
+          if (!sameOrderSession(session, generation)) return ;
           if (response.success) {
             const { pendingOrder, missedOrders } = get();
             const acceptedOrderData = response.data;
@@ -831,7 +795,7 @@ export const useOrderStore = create<OrderState>()(
             Alert.alert("Error", errorMsg);
           }
         } finally {
-          set({ loading: false });
+          if (sameOrderSession(session, generation)) set({ loading: false });
         }
       },
 
@@ -912,6 +876,8 @@ export const useOrderStore = create<OrderState>()(
           orderId?: string;
         },
       ): Promise<boolean> => {
+        const session = useAuthStore.getState();
+        const generation = offerGeneration;
         try {
           const { activeOrder, activeOrders } = get();
           const targetOrder =
@@ -930,6 +896,7 @@ export const useOrderStore = create<OrderState>()(
             },
           );
 
+          if (!sameOrderSession(session, generation)) return false;
           if (response.success) {
             const nextActiveOrders = activeOrders.map((order) =>
               order.id === targetOrder.id ? { ...order, status } : order,
@@ -959,7 +926,7 @@ export const useOrderStore = create<OrderState>()(
           Alert.alert("Error", msg);
           return false;
         } finally {
-          set({ loading: false });
+          if (sameOrderSession(session, generation)) set({ loading: false });
         }
       },
 
@@ -984,8 +951,11 @@ export const useOrderStore = create<OrderState>()(
       },
 
       confirmReturnedToRestaurant: async (orderId: string) => {
+        const session = useAuthStore.getState();
+        const generation = offerGeneration;
         try {
           const response = await ApiService.confirmReturnedToRestaurant(orderId);
+          if (!sameOrderSession(session, generation)) return false;
           if (!response.success) return false;
 
           const { activeOrder, activeOrders, orderHistory } = get();
@@ -1056,139 +1026,90 @@ export const useOrderStore = create<OrderState>()(
         });
       },
 
-      fetchAvailableOrders: async () => {
-        try {
-          set({ loading: true });
-
-          const response = await ApiService.getAvailableOrders();
-
-          if (response.success && response.data) {
-            const orders: Order[] = response.data.map((order: any) =>
-              transformSocketOrder(order),
-            );
-
-            const { missedOrders, pendingOrder, activeOrder, activeOrders, orderHistory } =
-              get();
-            const availableIds = new Set(orders.map((o) => o.id));
-
-            // Orders that WERE available (stillAvailable:true) but are now gone
-            // from the API — need to fetch their real status (cancelled/taken/etc.)
-            const justDropped = missedOrders.filter(
-              (m) =>
-                m.reason === "timeout" &&
-                m.stillAvailable &&
-                !availableIds.has(m.order.id),
-            );
-
-            // Update stillAvailable on existing missed orders
-            let updatedMissed = missedOrders.map((m) => ({
-              ...m,
-              stillAvailable:
-                m.reason === "timeout" && availableIds.has(m.order.id),
-            }));
-
-            // Fetch actual statuses for orders that just dropped from available list
-            for (const missed of justDropped) {
-              try {
-                const res = await ApiService.getOrderById(missed.order.id);
-                const actualStatus: OrderStatus =
-                  res.success && res.data?.status
-                    ? res.data.status
-                    : ("cancelled" as OrderStatus);
-                updatedMissed = updatedMissed.map((m) =>
-                  m.order.id !== missed.order.id
-                    ? m
-                    : {
-                        ...m,
-                        order: { ...m.order, status: actualStatus },
-                        reason:
-                          actualStatus === "cancelled"
-                            ? ("cancelled" as MissedReason)
-                            : m.reason,
-                      },
-                );
-              } catch {
-                // If fetch fails, mark as expired/cancelled so it shows in history
-                updatedMissed = updatedMissed.map((m) =>
-                  m.order.id !== missed.order.id
-                    ? m
-                    : {
-                        ...m,
-                        order: {
-                          ...m.order,
-                          status: "cancelled" as OrderStatus,
-                        },
-                        reason: "cancelled" as MissedReason,
-                      },
-                );
-              }
+      fetchAvailableOrders: () => {
+        const session = useAuthStore.getState();
+        if (!session.isAuthenticated || !session.partner?.id) return Promise.resolve();
+        if (availabilityRefresh) {
+          availabilityRefreshAgain = true;
+          return availabilityRefresh;
+        }
+        const generation = offerGeneration;
+        const partnerId = session.partner.id;
+        const token = session.token;
+        const refresh = async () => {
+          do {
+            availabilityRefreshAgain = false;
+            const revision = offerRevision;
+            const response = await ApiService.getAvailableOrders();
+            const current = useAuthStore.getState();
+            if (generation !== offerGeneration || !current.isAuthenticated ||
+                current.partner?.id !== partnerId || current.token !== token) return;
+            // An order-taken event while REST was in flight invalidates that snapshot.
+            if (revision !== offerRevision) {
+              availabilityRefreshAgain = true;
+              continue;
             }
-
-            // IDs already being tracked (pending modal, active delivery, missed cards, history)
-            const trackedIds = new Set<string>(
-              [
-                ...updatedMissed.map((m) => m.order.id),
-                pendingOrder?.id,
-                activeOrder?.id,
-                ...activeOrders.map((o) => o.id),
-                ...orderHistory.map((o) => o.id),
-              ].filter((id): id is string => Boolean(id)),
-            );
-
-            // Add orders the partner hasn't seen yet to missedOrders so they
-            // appear in "Pending Requests" and can be accepted.
-            const unseen = orders.filter((o) => !trackedIds.has(o.id));
-
-            // Reliable wake path that does NOT depend on the Firebase push
-            // timing: if the rider has nothing pending/active right now and a
-            // brand-new order (broadcast within the ring window) just showed
-            // up in the authoritative API list, pop the ring for it. This is
-            // what makes "closed the app, reopened, order is right there and
-            // ringing" work every time instead of sometimes.
+            if (!response.success || !Array.isArray(response.data)) return;
+            const activeIds = new Set(get().activeOrders.map((order) => order.id));
+            const orders: Order[] = response.data.map(transformSocketOrder)
+              .filter((order: Order) => !activeIds.has(order.id));
+            const availableIds = new Set(orders.map((order) => order.id));
+            const { pendingOrder, incomingOrder, activeOrder, activeOrders,
+              missedOrders, orderHistory } = get();
+            const pending = pendingOrder && availableIds.has(pendingOrder.id)
+              ? pendingOrder : null;
+            const updatedMissed = missedOrders.map((missed) => ({
+              ...missed,
+              stillAvailable: missed.reason === "timeout" && availableIds.has(missed.order.id),
+            }));
+            const tracked = new Set([
+              pendingOrder?.id, activeOrder?.id, ...activeOrders.map((order) => order.id),
+              ...updatedMissed.map((missed) => missed.order.id),
+              ...orderHistory.map((order) => order.id),
+            ]);
+            const unseen = orders.filter((order) => !tracked.has(order.id));
             const now = Date.now();
-            const ringCandidate = !pendingOrder && !activeOrder
-              ? unseen.find(
-                  (o) => now - o.createdAt.getTime() < RING_FRESHNESS_MS,
-                )
+            const ring = !pending && !activeOrder
+              ? unseen.find((order) => now - offerTime(order) >= 0 &&
+                  now - offerTime(order) < RING_FRESHNESS_MS)
               : undefined;
-
-            const unseenMissed: MissedOrder[] = unseen
-              .filter((o) => o.id !== ringCandidate?.id)
-              .map((o) => ({
-                order: o,
-                missedAt: o.createdAt,
-                // expiresAt controls the Accept button – 15 min from order creation
-                expiresAt: new Date(
-                  o.createdAt.getTime() + MISSED_ORDER_TTL_MS,
-                ),
-                reason: "timeout" as MissedReason,
-                stillAvailable: true,
-              }));
-
             set({
               availableOrders: orders,
-              missedOrders: [...unseenMissed, ...updatedMissed],
-              ...(ringCandidate
-                ? {
-                    incomingOrder: ringCandidate,
-                    pendingOrder: ringCandidate,
-                    pendingOrderReceivedAt: Date.now(),
-                  }
-                : {}),
+              pendingOrder: ring || pending,
+              incomingOrder: ring || (incomingOrder && availableIds.has(incomingOrder.id) ? incomingOrder : null),
+              pendingOrderReceivedAt: ring ? now : pending ? get().pendingOrderReceivedAt : null,
+              missedOrders: [
+                ...unseen.filter((order) => order.id !== ring?.id).map((order) => ({
+                  order, missedAt: new Date(offerTime(order)),
+                  expiresAt: new Date(offerTime(order) + MISSED_ORDER_TTL_MS),
+                  reason: "timeout" as MissedReason, stillAvailable: true,
+                })),
+                ...updatedMissed,
+              ],
             });
-          }
-        } catch (error) {
-          console.error("Fetch available orders error:", error);
-        } finally {
-          set({ loading: false });
-        }
+          } while (availabilityRefreshAgain);
+        };
+        const pending = refresh().catch(() => {
+          console.warn("[Offers] Availability refresh failed");
+        }).finally(() => {
+          if (availabilityRefresh === pending) availabilityRefresh = null;
+        });
+        availabilityRefresh = pending;
+        return pending;
       },
 
       fetchAssignedOrders: async () => {
+        const session = useAuthStore.getState();
+        const generation = offerGeneration;
+        if (!session.isAuthenticated || !session.partner?.id) return;
         try {
           set({ loading: true });
 
           const response = await ApiService.getAssignedOrders();
+
+          const current = useAuthStore.getState();
+          if (generation !== offerGeneration || !current.isAuthenticated ||
+              current.partner?.id !== session.partner.id || current.token !== session.token) return;
 
           if (response.success && response.data) {
             const assignedOrders = response.data
@@ -1219,10 +1140,14 @@ export const useOrderStore = create<OrderState>()(
       },
 
       fetchRoutePlan: async () => {
+        const session = useAuthStore.getState();
+        const generation = offerGeneration;
+        if (!session.isAuthenticated || !session.partner?.id) return;
         try {
           const response = await ApiService.getDeliveryRoutePlan(
             get().driverLocation,
           );
+          if (!sameOrderSession(session, generation)) return;
           if (response.success && response.data) {
             set({
               routePlan: {
@@ -1239,10 +1164,14 @@ export const useOrderStore = create<OrderState>()(
       },
 
       fetchOrderHistory: async (page = 1) => {
+        const session = useAuthStore.getState();
+        const generation = offerGeneration;
+        if (!session.isAuthenticated || !session.partner?.id) return;
         try {
           set({ loading: true });
 
           const response = await ApiService.getOrderHistory(page);
+          if (!sameOrderSession(session, generation)) return;
 
           console.log(
             "📦 [History] Raw API response:",
@@ -1330,6 +1259,8 @@ export const useOrderStore = create<OrderState>()(
         longitude: number,
         metadata?: { heading?: number | null; accuracy?: number | null },
       ) => {
+        const session = useAuthStore.getState();
+        const generation = offerGeneration;
         try {
           const { activeOrder } = get();
 
@@ -1338,6 +1269,7 @@ export const useOrderStore = create<OrderState>()(
             longitude,
             metadata,
           );
+          if (!sameOrderSession(session, generation)) return { success: false as const };
           if (result?.success === false) {
             return { success: false as const };
           }
@@ -1423,10 +1355,11 @@ export const useOrderStore = create<OrderState>()(
         }
 
         set({
-          missedOrders: updatedMissed,
-          pendingOrder: fixedPending,
-          incomingOrder: fixedPending,
-          pendingOrderReceivedAt: fixedReceivedAt,
+          missedOrders: updatedMissed.map((missed) => ({ ...missed, stillAvailable: false })),
+          // Persisted offers are not proof of current server eligibility.
+          pendingOrder: null,
+          incomingOrder: null,
+          pendingOrderReceivedAt: null,
           activeOrder: activeOrder
             ? { ...activeOrder, createdAt: new Date(activeOrder.createdAt) }
             : null,
@@ -1449,6 +1382,7 @@ export const useOrderStore = create<OrderState>()(
       name: "delivery-order-store",
       storage: createJSONStorage(() => AsyncStorage),
       partialize: (state) => ({
+        orderOwnerId: state.orderOwnerId,
         activeOrder: state.activeOrder,
         activeOrders: state.activeOrders,
         pendingOrder: state.pendingOrder,
