@@ -2,7 +2,7 @@
   "expo": {
     "name": "KhaaoNow Delivery",
     "slug": "khaaonow-delivery",
-    "version": "1.0.14",
+    "version": "1.0.15",
     "orientation": "portrait",
     "icon": "./assets/images/DeliveryKhaaoNow.png",
     "scheme": "khaaonowdelivery",
@@ -12,12 +12,12 @@
       "supportsTablet": false,
       "requireFullScreen": true,
       "bundleIdentifier": "com.khaaonow.delivery",
-      "buildNumber": "2026110501",
+      "buildNumber": "2026110601",
       "googleServicesFile": "./GoogleService-Info.plist"
     },
     "android": {
       "package": "com.khaaonow.delivery",
-      "versionCode": 2026110501,
+      "versionCode": 2026110601,
       "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "backgroundColor": "#FFD230",

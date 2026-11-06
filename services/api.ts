@@ -655,6 +655,13 @@ export const ApiService = {
 
   // ==================== ORDERS ====================
 
+  /** JWT-authenticated; the server derives the partner identity, never the client. */
+  async getFirebaseToken(): Promise<ApiResponse<{ customToken: string; partnerId: string }>> {
+    return apiClient.get<ApiResponse<{ customToken: string; partnerId: string }>>(
+      "/delivery-partners/profile?firebaseToken=true",
+    );
+  },
+
   /**
    * Get available orders for the delivery partner
    */
